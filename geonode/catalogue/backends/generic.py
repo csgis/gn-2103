@@ -20,19 +20,13 @@
 
 import logging
 import re
-
-from urllib.request import (
-    build_opener,
-    Request,
-    HTTPCookieProcessor,
-    HTTPRedirectHandler
-)
-from urllib.parse import urlparse, urlencode
-
+import urllib
+import urllib2
 from django.conf import settings
 from django.template.loader import get_template
 from owslib.csw import CatalogueServiceWeb, namespaces
 from owslib.util import http_post
+from urlparse import urlparse
 from defusedxml import lxml as dlxml
 from geonode.catalogue.backends.base import BaseCatalogueBackend
 
@@ -97,14 +91,14 @@ class Catalogue(CatalogueServiceWeb):
                 "Content-Type": "application/x-www-form-urlencoded",
                 "Accept": "text/plain"
             }
-            post = urlencode({
+            post = urllib.urlencode({
                 "username": self.user,
                 "password": self.password
             })
-            request = Request(url, post, headers)
-            self.opener = build_opener(
-                HTTPCookieProcessor(),
-                HTTPRedirectHandler())
+            request = urllib2.Request(url, post, headers)
+            self.opener = urllib2.build_opener(
+                urllib2.HTTPCookieProcessor(),
+                urllib2.HTTPRedirectHandler())
             response = self.opener.open(request)
             doc = dlxml.fromstring(response.read())
             assert doc.tag == 'ok', "GeoNetwork login failed!"
@@ -113,20 +107,20 @@ class Catalogue(CatalogueServiceWeb):
     def logout(self):
         if self.type == 'geonetwork':
             url = "%sgeonetwork/srv/en/xml.user.logout" % self.base
-            request = Request(url)
+            request = urllib2.Request(url)
             response = self.opener.open(request)  # noqa
             self.connected = False
 
     def get_by_uuid(self, uuid):
         try:
             self.getrecordbyid([uuid], outputschema=namespaces["gmd"])
-        except Exception:
+        except BaseException:
             return None
 
         if hasattr(self, 'records'):
             if len(self.records) < 1:
                 return None
-            record = list(self.records.values())[0]
+            record = self.records.values()[0]
             record.keywords = []
             if hasattr(
                     record,
@@ -140,7 +134,7 @@ class Catalogue(CatalogueServiceWeb):
             return None
 
     def url_for_uuid(self, uuid, outputschema):
-        return "%s?%s" % (self.url, urlencode({
+        return "%s?%s" % (self.url, urllib.urlencode({
             "request": "GetRecordById",
             "service": "CSW",
             "version": "2.0.2",
@@ -185,14 +179,14 @@ class Catalogue(CatalogueServiceWeb):
 
     def csw_request(self, layer, template):
 
-        md_doc = self.csw_gen_xml(layer, template)
+        md_doc = self.csw_gen_xml(layer, template).encode('utf-8')
 
         if self.type == 'geonetwork':
             headers = {
                 "Content-Type": "application/xml; charset=UTF-8",
                 "Accept": "text/plain"
             }
-            request = Request(self.url, md_doc, headers)
+            request = urllib2.Request(self.url, md_doc, headers)
             response = self.urlopen(request)
         else:
             response = http_post(self.url, md_doc, timeout=TIMEOUT)
@@ -256,10 +250,10 @@ class Catalogue(CatalogueServiceWeb):
 
         if self.type == 'geonetwork':
             get_dbid_url = '%sgeonetwork/srv/en/portal.search.present?%s' % \
-                           (self.base, urlencode({'uuid': uuid}))
+                           (self.base, urllib.urlencode({'uuid': uuid}))
 
             # get the id of the data.
-            request = Request(get_dbid_url)
+            request = urllib2.Request(get_dbid_url)
             response = self.urlopen(request)
             doc = dlxml.fromstring(response.read())
             data_dbid = doc.find(
@@ -275,7 +269,6 @@ class Catalogue(CatalogueServiceWeb):
             priv_params = {
                 "id": data_dbid,  # "uuid": layer.uuid, # you can say this instead in newer versions of GN
             }
-
             for group, privs in privileges.items():
                 group_id = self._group_ids[group.lower()]
                 for op, state in privs.items():
@@ -286,8 +279,8 @@ class Catalogue(CatalogueServiceWeb):
 
             # update all privileges
             update_privs_url = "%sgeonetwork/srv/en/metadata.admin?%s" % (
-                self.base, urlencode(priv_params))
-            request = Request(update_privs_url)
+                self.base, urllib.urlencode(priv_params))
+            request = urllib2.Request(update_privs_url)
             response = self.urlopen(request)
 
             # TODO: check for error report
@@ -299,8 +292,8 @@ class Catalogue(CatalogueServiceWeb):
         """
         # get the ids of the groups.
         get_groups_url = "%sgeonetwork/srv/en/xml.info?%s" % (
-            self.base, urlencode({'type': 'groups'}))
-        request = Request(get_groups_url)
+            self.base, urllib.urlencode({'type': 'groups'}))
+        request = urllib2.Request(get_groups_url)
         response = self.urlopen(request)
         doc = dlxml.fromstring(response.read())
         groups = {}
@@ -315,8 +308,8 @@ class Catalogue(CatalogueServiceWeb):
         """
         # get the ids of the operations
         get_ops_url = "%sgeonetwork/srv/en/xml.info?%s" % (
-            self.base, urlencode({'type': 'operations'}))
-        request = Request(get_ops_url)
+            self.base, urllib.urlencode({'type': 'operations'}))
+        request = urllib2.Request(get_ops_url)
         response = self.urlopen(request)
         doc = dlxml.fromstring(response.read())
         ops = {}
@@ -422,7 +415,7 @@ class Catalogue(CatalogueServiceWeb):
                     format = format_re.match(link_el.description).groups()[0]
                     href = link_el.url
                     links.append((extension, format, href))
-                except Exception:
+                except BaseException:
                     pass
         return links
 
@@ -448,7 +441,7 @@ class CatalogueBackend(BaseCatalogueBackend):
             # build results into JSON for API
             results = [
                 self.catalogue.metadatarecord2dict(doc) for v,
-                doc in self.catalogue.records.items()]
+                doc in self.catalogue.records.iteritems()]
 
             result = {'rows': results,
                       'total': self.catalogue.results['matches'],
@@ -466,7 +459,7 @@ class CatalogueBackend(BaseCatalogueBackend):
                 # model but it just passes it to a Django template so a dict works
                 # too.
                 self.catalogue.delete_layer({"uuid": uuid})
-            except Exception:
+            except BaseException:
                 logger.exception(
                     'Couldn\'t delete Catalogue record during cleanup()')
 

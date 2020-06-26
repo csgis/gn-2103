@@ -40,7 +40,6 @@ import shutil
 import uuid
 import zipfile
 import traceback
-from six import string_types
 
 from django.conf import settings
 from django.db.models import Max
@@ -177,7 +176,7 @@ def upload(
 
     if user is None:
         user = get_default_user()
-    if isinstance(user, string_types):
+    if isinstance(user, basestring):
         user = get_user_model().objects.get(username=user)
     import_session = save_step(
         user,
@@ -222,8 +221,8 @@ def upload(
 def _get_next_id():
     # importer tracks ids by autoincrement but is prone to corruption
     # which potentially may reset the id - hopefully prevent this...
-    upload_next_id = list(Upload.objects.all().aggregate(
-        Max('import_id')).values())[0]
+    upload_next_id = Upload.objects.all().aggregate(
+        Max('import_id')).values()[0]
     upload_next_id = upload_next_id if upload_next_id else 0
     # next_id = next_id + 1 if next_id else 1
     importer_sessions = gs_uploader.get_sessions()
@@ -402,7 +401,7 @@ def save_step(user, layer, spatial_files, overwrite=True, mosaic=False,
         # @todo once the random tmp9723481758915 type of name is not
         # around, need to track the name computed above, for now, the
         # target store name can be used
-    except Exception as e:
+    except BaseException as e:
         tb = traceback.format_exc()
         logger.debug(tb)
         logger.exception('Error creating import session')
@@ -604,14 +603,14 @@ def final_step(upload_session, user, charset="UTF-8"):
         if os.path.isfile(sld_file):
             try:
                 f = open(sld_file, 'r')
-            except Exception:
+            except BaseException:
                 pass
         elif upload_session.tempdir and os.path.exists(upload_session.tempdir):
             tempdir = upload_session.tempdir
             if os.path.isfile(os.path.join(tempdir, sld_file)):
                 try:
                     f = open(os.path.join(tempdir, sld_file), 'r')
-                except Exception:
+                except BaseException:
                     pass
 
         if f:
@@ -649,16 +648,17 @@ def final_step(upload_session, user, charset="UTF-8"):
             try:
                 style = cat.get_style(
                     name, workspace=settings.DEFAULT_WORKSPACE) or cat.get_style(name)
-            except Exception:
+            except BaseException:
                 logger.warn('Could not retreive the Layer default Style name')
                 # what are we doing with this var?
                 msg = 'No style could be created for the layer, falling back to POINT default one'
                 try:
                     style = cat.get_style(name + '_layer', workspace=settings.DEFAULT_WORKSPACE) or \
                         cat.get_style(name + '_layer')
-                except Exception as e:
+                except BaseException:
                     style = cat.get_style('point')
-                    logger.warn(str(e))
+                    logger.warn(msg)
+                    e.args = (msg,)
 
         if style:
             publishing.default_style = style

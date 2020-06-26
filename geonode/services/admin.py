@@ -32,7 +32,7 @@ class HarvestJobAdminInline(admin.StackedInline):
 
 class ServiceAdminForm(ResourceBaseAdminForm):
 
-    class Meta(ResourceBaseAdminForm.Meta):
+    class Meta:
         model = models.Service
         fields = '__all__'
 

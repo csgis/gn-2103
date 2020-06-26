@@ -102,8 +102,11 @@ class LayerUploadForm(forms.Form):
 
     def _get_uploaded_files(self):
         """Return a list with all of the uploaded files"""
-        return [django_file for field_name, django_file in self.files.items()
-                if field_name != "base_file"]
+        uploaded = []
+        for field_name, django_file in self.files.iteritems():
+            if field_name != "base_file":
+                uploaded.append(django_file)
+        return uploaded
 
 
 class TimeForm(forms.Form):

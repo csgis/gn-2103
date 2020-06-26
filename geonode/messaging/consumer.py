@@ -32,16 +32,10 @@ from geonode.layers.views import layer_view_counter
 from geonode.layers.models import Layer
 from geonode.geoserver.helpers import gs_slurp
 
-from .queues import (
-    queue_email_events,
-    queue_geoserver_events,
-    queue_notifications_events,
-    queue_all_events,
-    queue_geoserver_catalog,
-    queue_geoserver_data,
-    queue_geoserver,
-    queue_layer_viewers
-)
+from queues import queue_email_events, queue_geoserver_events,\
+    queue_notifications_events, queue_all_events,\
+    queue_geoserver_catalog, queue_geoserver_data,\
+    queue_geoserver, queue_layer_viewers
 
 logger = logging.getLogger(__package__)
 
@@ -137,7 +131,7 @@ class Consumer(ConsumerMixin):
         try:
             _update_layer_data(body, self.last_message)
             self.last_message = json.loads(body)
-        except Exception:
+        except BaseException:
             logger.debug("Could not encode message {!r}".format(body))
         message.ack()
         logger.debug("on_geoserver_catalog: finished")
@@ -148,7 +142,7 @@ class Consumer(ConsumerMixin):
         try:
             _update_layer_data(body, self.last_message)
             self.last_message = json.loads(body)
-        except Exception:
+        except BaseException:
             logger.debug("Could not encode message {!r}".format(body))
         message.ack()
         logger.debug("on_geoserver_data: finished")
@@ -202,7 +196,7 @@ def _update_layer_data(body, last_message):
                 update_layer = True
 
     if update_layer:
-        gs_slurp(True, workspace=workspace, store=store, filter=filter, remove_deleted=True, execute_signals=True)
+        gs_slurp(False, workspace=workspace, store=store, filter=filter, remove_deleted=True, execute_signals=True)
 
 
 def _wait_for_layer(layer_id, num_attempts=5, wait_seconds=1):

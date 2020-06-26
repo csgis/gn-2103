@@ -54,7 +54,7 @@ if "relationships" in settings.INSTALLED_APPS:
 ratings = None
 if "ratings" in settings.INSTALLED_APPS:
     ratings = True
-    from pinax.ratings.models import Rating
+    from agon_ratings.models import Rating
 
 
 def activity_post_modify_object(sender, instance, created=None, **kwargs):
@@ -135,14 +135,14 @@ def activity_post_modify_object(sender, instance, created=None, **kwargs):
     if verb:
         try:
             activity.send(action.get('actor'),
-                          verb="{verb}".format(verb=verb),
+                          verb=u"{verb}".format(verb=verb),
                           action_object=action.get('action_object'),
                           target=action.get('target', None),
                           object_name=action.get('object_name'),
                           raw_action=raw_action,
                           )
         # except ModelNotActionable:
-        except Exception:
+        except BaseException:
             logger.debug('The activity received a non-actionable Model or None as the actor/action.')
 
 

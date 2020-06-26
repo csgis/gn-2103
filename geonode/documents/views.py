@@ -24,7 +24,7 @@ import logging
 import traceback
 from itertools import chain
 
-from guardian.shortcuts import get_perms, get_objects_for_user
+from guardian.shortcuts import get_perms
 
 from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse, HttpResponseRedirect, Http404
@@ -32,8 +32,8 @@ from django.template import loader
 from django.utils.translation import ugettext as _
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
-from django.urls import reverse
-from django.core.exceptions import PermissionDenied, ObjectDoesNotExist
+from django.core.urlresolvers import reverse
+from django.core.exceptions import PermissionDenied
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django_downloadview.response import DownloadResponse
@@ -57,9 +57,6 @@ from geonode.groups.models import GroupProfile
 from geonode.base.views import batch_modify
 from geonode.monitoring import register_event
 from geonode.monitoring.models import EventType
-from geonode.security.utils import get_visible_resources
-
-from dal import autocomplete
 
 logger = logging.getLogger("geonode.documents.views")
 
@@ -130,7 +127,7 @@ def document_detail(request, docid):
         if document.group:
             try:
                 group = GroupProfile.objects.get(slug=document.group.name)
-            except ObjectDoesNotExist:
+            except GroupProfile.DoesNotExist:
                 group = None
         context_dict = {
             'perms_list': get_perms(
@@ -153,10 +150,10 @@ def document_detail(request, docid):
                 exif = exif_extract_dict(document)
                 if exif:
                     context_dict['exif_data'] = exif
-            except Exception:
+            except BaseException:
                 logger.error("Exif extraction failed.")
 
-        if request.user.is_authenticated:
+        if request.user.is_authenticated():
             if getattr(settings, 'FAVORITE_ENABLED', False):
                 from geonode.favorite.utils import get_favorite_info
                 context_dict["favorite_info"] = get_favorite_info(request.user, document)
@@ -243,7 +240,7 @@ class DocumentUploadView(CreateView):
                     keywords.extend(exif_metadata.get('keywords', []))
                     bbox = exif_metadata.get('bbox', None)
                     abstract = exif_metadata.get('abstract', None)
-            except Exception:
+            except BaseException:
                 logger.error("Exif extraction failed.")
 
         if abstract:
@@ -275,7 +272,7 @@ class DocumentUploadView(CreateView):
                 send_slack_message(
                     build_slack_message_document(
                         "document_new", self.object))
-            except Exception:
+            except BaseException:
                 logger.error("Could not send slack message for new document.")
 
         register_event(self.request, EventType.EVENT_UPLOAD, self.object)
@@ -377,7 +374,9 @@ def document_metadata(
             category_form = CategoryForm(request.POST, prefix="category_choice_field", initial=int(
                 request.POST["category_choice_field"]) if "category_choice_field" in request.POST and
                 request.POST["category_choice_field"] else None)
-            tkeywords_form = TKeywordForm(request.POST)
+            tkeywords_form = TKeywordForm(
+                prefix="tkeywords",
+                initial={'tkeywords': request.POST.getlist('tkeywords-tkeywords')})
         else:
             document_form = DocumentForm(instance=document, prefix="resource")
             category_form = CategoryForm(
@@ -403,11 +402,13 @@ def document_metadata(
                                 tkeywords_list += "," + \
                                     tkl_ids if len(
                                         tkeywords_list) > 0 else tkl_ids
-                    except Exception:
+                    except BaseException:
                         tb = traceback.format_exc()
                         logger.error(tb)
 
-            tkeywords_form = TKeywordForm(instance=document)
+            tkeywords_form = TKeywordForm(
+                prefix="tkeywords",
+                initial={'tkeywords': tkeywords_list})
 
         if request.method == "POST" and document_form.is_valid(
         ) and category_form.is_valid():
@@ -483,22 +484,36 @@ def document_metadata(
 
             try:
                 # Keywords from THESAURUS management
-                # Rewritten to work with updated autocomplete
-                if not tkeywords_form.is_valid():
-                    return HttpResponse(json.dumps({'message': "Invalid thesaurus keywords"}, status_code=400))
+                tkeywords_to_add = []
+                tkeywords_cleaned = tkeywords_form.clean()
+                if tkeywords_cleaned and len(tkeywords_cleaned) > 0:
+                    tkeywords_ids = []
+                    for i, val in enumerate(tkeywords_cleaned):
+                        try:
+                            cleaned_data = [value for key, value in tkeywords_cleaned[i].items(
+                            ) if 'tkeywords' in key.lower() and 'autocomplete' not in key.lower()]
+                            tkeywords_ids.extend(map(int, cleaned_data[0]))
+                        except BaseException:
+                            pass
 
-                tkeywords_data = tkeywords_form.cleaned_data['tkeywords']
-
-                thesaurus_setting = getattr(settings, 'THESAURUS', None)
-                if thesaurus_setting:
-                    tkeywords_data = tkeywords_data.filter(
-                        thesaurus__identifier=thesaurus_setting['name']
-                    )
-                    document.tkeywords = tkeywords_data
-            except Exception:
+                    if hasattr(settings, 'THESAURUS') and settings.THESAURUS:
+                        el = settings.THESAURUS
+                        thesaurus_name = el['name']
+                        try:
+                            t = Thesaurus.objects.get(
+                                identifier=thesaurus_name)
+                            for tk in t.thesaurus.all():
+                                tkl = tk.keyword.filter(pk__in=tkeywords_ids)
+                                if len(tkl) > 0:
+                                    tkeywords_to_add.append(tkl[0].keyword_id)
+                            document.tkeywords.clear()
+                            document.tkeywords.add(*tkeywords_to_add)
+                        except BaseException:
+                            tb = traceback.format_exc()
+                            logger.error(tb)
+            except BaseException:
                 tb = traceback.format_exc()
                 logger.error(tb)
-
             return HttpResponse(json.dumps({'message': message}))
 
         # - POST Request Ends here -
@@ -523,7 +538,7 @@ def document_metadata(
                     request.user.group_list_all(),
                     GroupProfile.objects.exclude(
                         access="private").exclude(access="public-invite"))
-            except Exception:
+            except BaseException:
                 all_metadata_author_groups = GroupProfile.objects.exclude(
                     access="private").exclude(access="public-invite")
             [metadata_author_groups.append(item) for item in all_metadata_author_groups
@@ -539,7 +554,7 @@ def document_metadata(
                     document.get_self_resource())
                 try:
                     is_manager = request.user.groupmember_set.all().filter(role='manager').exists()
-                except Exception:
+                except BaseException:
                     is_manager = False
                 if not is_manager or not can_change_metadata:
                     document_form.fields['is_approved'].widget.attrs.update(
@@ -616,7 +631,12 @@ def document_thumb_upload(
                 filename = 'document-{}-thumb.png'.format(document.uuid)
                 path = default_storage.save(
                     'tmp/' + filename, ContentFile(data.read()))
-                image_path = os.path.join(settings.MEDIA_ROOT, path)
+                f = os.path.join(settings.MEDIA_ROOT, path)
+                try:
+                    image_path = f
+                except BaseException:
+                    image_path = document.find_placeholder()
+
                 thumbnail_content = None
                 try:
                     thumbnail_content = generate_thumbnail_content(image_path)
@@ -703,7 +723,7 @@ def document_metadata_detail(
     if document.group:
         try:
             group = GroupProfile.objects.get(slug=document.group.name)
-        except ObjectDoesNotExist:
+        except GroupProfile.DoesNotExist:
             group = None
     site_url = settings.SITEURL.rstrip('/') if settings.SITEURL.startswith('http') else settings.SITEURL
     register_event(request, EventType.EVENT_VIEW_METADATA, document)
@@ -717,23 +737,3 @@ def document_metadata_detail(
 @login_required
 def document_batch_metadata(request, ids):
     return batch_modify(request, ids, 'Document')
-
-
-class DocumentAutocomplete(autocomplete.Select2QuerySetView):
-
-    def get_queryset(self):
-        request = self.request
-        permitted = get_objects_for_user(
-            request.user,
-            'base.view_resourcebase')
-        qs = Document.objects.all().filter(id__in=permitted)
-
-        if self.q:
-            qs = qs.filter(title__icontains=self.q)
-
-        return get_visible_resources(
-            qs,
-            request.user if request else None,
-            admin_approval_required=settings.ADMIN_MODERATE_UPLOADS,
-            unpublished_not_visible=settings.RESOURCE_PUBLISHING,
-            private_groups_not_visibile=settings.GROUP_PRIVATE_RESOURCES)

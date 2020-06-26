@@ -30,7 +30,7 @@ from geonode.utils import fixup_shp_columnnames
 from geoserver.resource import FeatureType, Coverage
 from django.utils.translation import ugettext as _
 
-from collections import UserList
+from UserList import UserList
 import zipfile
 import os
 import re
@@ -225,7 +225,7 @@ def _find_file_type(file_names, extension):
     """
     Returns files that end with the given extension from a list of file names.
     """
-    return [f for f in file_names if f.lower().endswith(extension)]
+    return filter(lambda f: f.lower().endswith(extension), file_names)
 
 
 def clean_macosx_dir(file_names):
@@ -259,7 +259,7 @@ def get_scan_hint(valid_extensions):
 def scan_file(file_name, scan_hint=None, charset=None):
     '''get a list of SpatialFiles for the provided file'''
     if not os.path.exists(file_name):
-        raise Exception(_("Could not access to uploaded data."))
+        raise Exception(_("Could not access to uploaded data.").encode('UTF-8'))
 
     dirname = os.path.dirname(file_name)
     if zipfile.is_zipfile(file_name):

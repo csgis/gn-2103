@@ -23,13 +23,10 @@ from django.test import Client
 from selenium import webdriver
 from unittest import TestCase as StandardTestCase
 
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.contrib.auth import get_user_model
 from django.template.defaultfilters import slugify
-try:
-    import unittest.mock as mock
-except ImportError:
-    import mock
+import mock
 from owslib.map.wms111 import ContentMetadata
 
 from geonode.services.utils import test_resource_table_status
@@ -257,18 +254,18 @@ class ModuleFunctionsTestCase(StandardTestCase):
         mock_map_service.return_value = (phony_url, mock_parsed_arcgis)
 
         handler = arcgis.ArcImageServiceHandler(phony_url)
-        self.assertEqual(handler.url, phony_url)
+        self.assertEquals(handler.url, phony_url)
 
         LayerESRIExtent = namedtuple('LayerESRIExtent', 'spatialReference xmin ymin ymax xmax')
         LayerESRIExtentSpatialReference = namedtuple('LayerESRIExtentSpatialReference', 'wkid latestWkid')
 
         layer_meta = MapLayer(
             id=0,
-            title='Droits pétroliers et gaziers / Oil and Gas Rights',
-            abstract='Droits pétroliers et gaziers / Oil and Gas Rights',
-            type='Feature Layer',
-            geometryType='esriGeometryPolygon',
-            copyrightText='',
+            title=u'Droits pétroliers et gaziers / Oil and Gas Rights',
+            abstract=u'Droits pétroliers et gaziers / Oil and Gas Rights',
+            type=u'Feature Layer',
+            geometryType=u'esriGeometryPolygon',
+            copyrightText=u'',
             extent=LayerESRIExtent(
                 LayerESRIExtentSpatialReference(4140, 4617),
                 -144.97375,
@@ -277,99 +274,99 @@ class ModuleFunctionsTestCase(StandardTestCase):
                 -57.55125),
             fields=[
                 {
-                    'alias': 'OBJECTID',
-                    'domain': None,
-                    'type': 'esriFieldTypeOID',
-                    'name': 'OBJECTID'
+                    u'alias': u'OBJECTID',
+                    u'domain': None,
+                    u'type': u'esriFieldTypeOID',
+                    u'name': u'OBJECTID'
                 },
                 {
-                    'alias': 'Numéro du titre / Title Number',
-                    'length': 16,
-                    'type': 'esriFieldTypeString',
-                    'name': 'LICENCE_NUMBER',
-                    'domain': None
+                    u'alias': u'Numéro du titre / Title Number',
+                    u'length': 16,
+                    u'type': u'esriFieldTypeString',
+                    u'name': u'LICENCE_NUMBER',
+                    u'domain': None
                 },
                 {
-                    'alias': 'Superficie actuelle (ha) / Current Area (ha)',
-                    'domain': None,
-                    'type': 'esriFieldTypeDouble',
-                    'name': 'CURRENT_AREA_HA'
+                    u'alias': u'Superficie actuelle (ha) / Current Area (ha)',
+                    u'domain': None,
+                    u'type': u'esriFieldTypeDouble',
+                    u'name': u'CURRENT_AREA_HA'
                 },
                 {
-                    'alias': 'Code du type de permis / Licence Type Code',
-                    'length': 5,
-                    'type': 'esriFieldTypeString',
-                    'name': 'AGRMT_TYPE',
-                    'domain': None
+                    u'alias': u'Code du type de permis / Licence Type Code',
+                    u'length': 5,
+                    u'type': u'esriFieldTypeString',
+                    u'name': u'AGRMT_TYPE',
+                    u'domain': None
                 },
                 {
-                    'alias': 'Datum',
-                    'length': 8,
-                    'type': 'esriFieldTypeString',
-                    'name': 'DATUM',
-                    'domain': None
+                    u'alias': u'Datum',
+                    u'length': 8,
+                    u'type': u'esriFieldTypeString',
+                    u'name': u'DATUM',
+                    u'domain': None
                 },
                 {
-                    'alias': 'Région (anglais) / Region (English)',
-                    'length': 64,
-                    'type': 'esriFieldTypeString',
-                    'name': 'REGION_E',
-                    'domain': None
+                    u'alias': u'Région (anglais) / Region (English)',
+                    u'length': 64,
+                    u'type': u'esriFieldTypeString',
+                    u'name': u'REGION_E',
+                    u'domain': None
                 },
                 {
-                    'alias': 'Région (français) / Region (French)',
-                    'length': 64,
-                    'type': 'esriFieldTypeString',
-                    'name': 'REGION_F',
-                    'domain': None
+                    u'alias': u'Région (français) / Region (French)',
+                    u'length': 64,
+                    u'type': u'esriFieldTypeString',
+                    u'name': u'REGION_F',
+                    u'domain': None
                 },
                 {
-                    'alias': 'Représentant / Representative',
-                    'length': 50,
-                    'type': 'esriFieldTypeString',
-                    'name': 'COMPANY_NAME',
-                    'domain': None
+                    u'alias': u'Représentant / Representative',
+                    u'length': 50,
+                    u'type': u'esriFieldTypeString',
+                    u'name': u'COMPANY_NAME',
+                    u'domain': None
                 },
                 {
-                    'alias': "Date d'entrée en vigueur / Effective Date",
-                    'length': 8,
-                    'type': 'esriFieldTypeDate',
-                    'name': 'LICENCE_ISSUE_DATE',
-                    'domain': None
+                    u'alias': u"Date d'entrée en vigueur / Effective Date",
+                    u'length': 8,
+                    u'type': u'esriFieldTypeDate',
+                    u'name': u'LICENCE_ISSUE_DATE',
+                    u'domain': None
                 },
                 {
-                    'alias': "Date d'échéance / Expiry Date",
-                    'length': 8,
-                    'type': 'esriFieldTypeDate',
-                    'name': 'LICENCE_EXPIRY_DATE',
-                    'domain': None
+                    u'alias': u"Date d'échéance / Expiry Date",
+                    u'length': 8,
+                    u'type': u'esriFieldTypeDate',
+                    u'name': u'LICENCE_EXPIRY_DATE',
+                    u'domain': None
                 },
                 {
-                    'alias': "Type d'accord (anglais) / Agreement Type (English)",
-                    'length': 50,
-                    'type': 'esriFieldTypeString',
-                    'name': 'AGRMT_TYPE_E',
-                    'domain': None
+                    u'alias': u"Type d'accord (anglais) / Agreement Type (English)",
+                    u'length': 50,
+                    u'type': u'esriFieldTypeString',
+                    u'name': u'AGRMT_TYPE_E',
+                    u'domain': None
                 },
                 {
-                    'alias': "Type d'accord (français) / Agreement Type (French)",
-                    'length': 50,
-                    'type': 'esriFieldTypeString',
-                    'name': 'AGRMT_TYPE_F',
-                    'domain': None
+                    u'alias': u"Type d'accord (français) / Agreement Type (French)",
+                    u'length': 50,
+                    u'type': u'esriFieldTypeString',
+                    u'name': u'AGRMT_TYPE_F',
+                    u'domain': None
                 },
                 {
-                    'alias': 'Shape',
-                    'domain': None,
-                    'type': 'esriFieldTypeGeometry',
-                    'name': 'SHAPE'
+                    u'alias': u'Shape',
+                    u'domain': None,
+                    u'type': u'esriFieldTypeGeometry',
+                    u'name': u'SHAPE'
                 }
             ],
             minScale=0,
             maxScale=0
         )
         resource_fields = handler._get_indexed_layer_fields(layer_meta)
-        self.assertEqual(resource_fields['alternate'], '0-droits-ptroliers-et-gaziers-oil-and-gas-rights')
+        self.assertEquals(resource_fields['alternate'], '0-droits-ptroliers-et-gaziers-oil-and-gas-rights')
 
 
 class WmsServiceHandlerTestCase(GeoNodeBaseTestSupport):
@@ -551,7 +548,7 @@ class WmsServiceHandlerTestCase(GeoNodeBaseTestSupport):
     def test_local_user_cant_delete_service(self):
         self.client.logout()
         response = self.client.get(reverse('register_service'))
-        self.assertEqual(response.status_code, 302)
+        self.failUnlessEqual(response.status_code, 302)
         url = 'https://demo.geo-solutions.it/geoserver/ows?service=wms&version=1.3.0&request=GetCapabilities'
         # url = "http://fake"
         service_type = enumerations.WMS
@@ -566,15 +563,15 @@ class WmsServiceHandlerTestCase(GeoNodeBaseTestSupport):
         response = self.client.post(reverse('register_service'), data=form_data)
 
         s = Service.objects.all().first()
-        self.assertEqual(len(Service.objects.all()), 1)
+        self.failUnlessEqual(len(Service.objects.all()), 1)
         self.assertEqual(s.owner, self.test_user)
 
         self.client.login(username='serviceuser', password='somepassword')
         response = self.client.post(reverse('edit_service', args=(s.id,)))
-        self.assertEqual(response.status_code, 401)
+        self.failUnlessEqual(response.status_code, 401)
         response = self.client.post(reverse('remove_service', args=(s.id,)))
-        self.assertEqual(response.status_code, 401)
-        self.assertEqual(len(Service.objects.all()), 1)
+        self.failUnlessEqual(response.status_code, 401)
+        self.failUnlessEqual(len(Service.objects.all()), 1)
 
         self.client.login(username='serviceowner', password='somepassword')
         form_data = {
@@ -590,32 +587,10 @@ class WmsServiceHandlerTestCase(GeoNodeBaseTestSupport):
         self.assertEqual(s.title, 'Foo Title')
         self.assertEqual(s.description, 'Foo Description')
         self.assertEqual(s.abstract, 'Foo Abstract')
-        self.assertEqual(['Foo', 'OWS', 'Service'],
+        self.assertEqual([u'Foo', u'OWS', u'Service'],
                          list(s.keywords.all().values_list('name', flat=True)))
         response = self.client.post(reverse('remove_service', args=(s.id,)))
-        self.assertEqual(len(Service.objects.all()), 0)
-
-    def test_add_duplicate_remote_service_url(self):
-        form_data = {
-            'url': 'https://demo.geo-solutions.it/geoserver/ows?service=wms&version=1.3.0&request=GetCapabilities',
-            'type': enumerations.WMS
-        }
-
-        self.client.login(username='serviceowner', password='somepassword')
-
-        # Add the first resource
-        form = forms.CreateServiceForm(form_data)
-        self.assertTrue(form.is_valid())
-        self.assertEqual(Service.objects.count(), 0)
-        self.client.post(reverse('register_service'), data=form_data)
-        self.assertEqual(Service.objects.count(), 1)
-
-        # Try adding the same URL again
-        form = forms.CreateServiceForm(form_data)
-        self.assertFalse(form.is_valid())
-        self.assertEqual(Service.objects.count(), 1)
-        self.client.post(reverse('register_service'), data=form_data)
-        self.assertEqual(Service.objects.count(), 1)
+        self.failUnlessEqual(len(Service.objects.all()), 0)
 
 
 class WmsServiceHarvestingTestCase(StaticLiveServerTestCase):
@@ -655,7 +630,7 @@ class WmsServiceHarvestingTestCase(StaticLiveServerTestCase):
             cls.selenium.refresh()
         except Exception as e:
             msg = str(e)
-            print(msg)
+            print msg
 
     @classmethod
     def tearDownClass(cls):

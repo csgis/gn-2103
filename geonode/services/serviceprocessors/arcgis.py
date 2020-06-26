@@ -139,7 +139,6 @@ class ArcMapServiceHandler(base.ServiceHandlerBase):
         try:
             return self._parse_layers(self.parsed_service.layers)
         except BaseException:
-            traceback.print_exc()
             return None
 
     def _parse_layers(self, layers):
@@ -219,19 +218,15 @@ class ArcMapServiceHandler(base.ServiceHandlerBase):
                                      layer_meta.extent.ymin,
                                      layer_meta.extent.xmax,
                                      layer_meta.extent.ymax])
-
-        typename = slugify("{}-{}".format(
-            layer_meta.id,
-            ''.join(c for c in layer_meta.title if ord(c) < 128)
-        ))
-
         return {
             "name": layer_meta.title,
             "store": self.name,
             "storeType": "remoteStore",
             "workspace": "remoteWorkspace",
-            "typename": typename,
-            "alternate": typename,
+            "typename": slugify(
+                u"%s-%s" % (layer_meta.id, layer_meta.title.encode("ascii", "ignore"))),
+            "alternate": slugify(
+                u"%s-%s" % (layer_meta.id, layer_meta.title.encode("ascii", "ignore"))),
             "title": layer_meta.title,
             "abstract": layer_meta.abstract,
             "bbox_x0": bbox[0],
@@ -267,7 +262,7 @@ class ArcMapServiceHandler(base.ServiceHandlerBase):
             "service": "WMS",
             "version": self.parsed_service.version,
             "request": "GetMap",
-            "layers": geonode_layer.alternate,
+            "layers": geonode_layer.alternate.encode('utf-8'),
             "bbox": geonode_layer.bbox_string,
             "srs": "EPSG:4326",
             "width": "200",

@@ -21,10 +21,10 @@
 
 import logging
 
-from urllib.parse import quote
+from urllib import quote
 
 from django.conf import settings
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from six.moves.urllib.parse import urlencode, urlparse, urljoin, parse_qs, urlunparse
 
 from geonode import geoserver
@@ -121,11 +121,13 @@ class ServiceHandlerBase(object):
 
     def create_geonode_service(self, owner, parent=None):
         """Create a new geonode.service.models.Service instance
+
         Saving the service instance in the database is not a concern of this
         method, it only deals with creating the instance.
 
         :arg owner: The user who will own the service instance
         :type owner: geonode.people.models.Profile
+
         """
 
         raise NotImplementedError
@@ -143,6 +145,7 @@ class ServiceHandlerBase(object):
 
     def harvest_resource(self, resource_id, geonode_service):
         """Harvest a single resource from the service
+
         This method creates new ``geonode.layers.models.Layer``
         instances (and their related objects too) and save them in the
         database.
@@ -151,6 +154,7 @@ class ServiceHandlerBase(object):
         :type resource_id: str
         :arg geonode_service: The already saved service instance
         :type geonode_service: geonode.services.models.Service
+
         """
 
         raise NotImplementedError

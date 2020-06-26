@@ -21,12 +21,12 @@
 import logging
 from django.db import models
 from django.conf import settings
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
 from geonode.base.models import ResourceBase
 from geonode.people.enumerations import ROLE_VALUES
-from urllib.parse import urljoin
+from urlparse import urljoin
 
 from . import enumerations
 
@@ -143,17 +143,13 @@ class Service(ResourceBase):
         'services.Service',
         null=True,
         blank=True,
-        on_delete=models.CASCADE,
         related_name='service_set'
     )
 
     # Supported Capabilities
 
-    def __str__(self):
-        return "{0}".format(self.name)
-
     def __unicode__(self):
-        return "{0}".format(self.__str__())
+        return self.name
 
     @property
     def service_url(self):
@@ -181,7 +177,7 @@ class Service(ResourceBase):
         # try:
         #     resp, content = http_client.request(self.service_url)
         #     return resp.status
-        # except Exception:
+        # except:
         #     return 404
         return 200
 
@@ -191,14 +187,14 @@ class ServiceProfileRole(models.Model):
     """
     ServiceProfileRole is an intermediate model to bind Profiles and Services and apply roles.
     """
-    profiles = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    service = models.ForeignKey(Service, on_delete=models.CASCADE)
+    profiles = models.ForeignKey(settings.AUTH_USER_MODEL)
+    service = models.ForeignKey(Service)
     role = models.CharField(choices=ROLE_VALUES, max_length=255, help_text=_(
         'function performed by the responsible party'))
 
 
 class HarvestJob(models.Model):
-    service = models.ForeignKey(Service, on_delete=models.CASCADE)
+    service = models.ForeignKey(Service)
     resource_id = models.CharField(max_length=255)
     status = models.CharField(
         choices=(

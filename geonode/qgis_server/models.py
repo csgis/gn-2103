@@ -30,10 +30,9 @@ from django.utils.translation import ugettext_lazy as _
 from geonode.security.models import PermissionLevelMixin
 from lxml import etree
 from defusedxml import lxml as dlxml
-from six import string_types
+
 
 from geonode import qgis_server
-from geonode.compat import ensure_string
 from geonode.layers.models import Layer
 from geonode.maps.models import Map
 from geonode.utils import check_ogc_backend
@@ -62,8 +61,7 @@ class QGISServerLayer(models.Model, PermissionLevelMixin):
     layer = models.OneToOneField(
         Layer,
         primary_key=True,
-        related_name='qgis_layer',
-        on_delete=models.CASCADE
+        related_name='qgis_layer'
     )
     base_layer_path = models.CharField(
         name='base_layer_path',
@@ -186,7 +184,7 @@ class QGISServerLayer(models.Model, PermissionLevelMixin):
         # Associate this model with resource
         try:
             return self.layer.get_self_resource()
-        except Exception:
+        except BaseException:
             return None
 
     class Meta:
@@ -224,7 +222,7 @@ class QGISServerStyle(models.Model, PermissionLevelMixin):
         :rtype: QGISServerStyle, bool
         """
 
-        if isinstance(style_xml, string_types):
+        if isinstance(style_xml, str):
             style_xml = dlxml.fromstring(style_xml)
 
         elif isinstance(style_xml, ElementTree.Element):
@@ -252,7 +250,7 @@ class QGISServerStyle(models.Model, PermissionLevelMixin):
 
         response = requests.get(style_url)
         style_body = etree.tostring(
-            dlxml.fromstring(ensure_string(response.content)), pretty_print=True)
+            dlxml.fromstring(response.content), pretty_print=True)
 
         default_dict = {
             'title': style_xml.xpath(
@@ -319,7 +317,7 @@ class QGISServerStyle(models.Model, PermissionLevelMixin):
             qgis_layer = self.layer_styles.first()
             """:type: QGISServerLayer"""
             return qgis_layer.get_self_resource()
-        except Exception:
+        except BaseException:
             return None
 
     class Meta:
@@ -332,8 +330,7 @@ class QGISServerMap(models.Model, PermissionLevelMixin):
     map = models.OneToOneField(
         Map,
         primary_key=True,
-        name='map',
-        on_delete="CASCASE"
+        name='map'
     )
 
     map_name_format = 'map_{id}'
@@ -382,7 +379,7 @@ class QGISServerMap(models.Model, PermissionLevelMixin):
         # Associate this model with resource
         try:
             return self.layer.get_self_resource()
-        except Exception:
+        except BaseException:
             return None
 
     class Meta:

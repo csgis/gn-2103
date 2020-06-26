@@ -23,7 +23,6 @@ import pytz
 from datetime import datetime, timedelta
 from decimal import Decimal
 from itertools import chain
-from six import string_types, integer_types
 
 from django.conf import settings
 from django.db import models
@@ -92,7 +91,7 @@ class CollectorAPI(object):
             if not iface_label:
                 try:
                     log.debug('no label', metric_name, row.get('description'))
-                except Exception:
+                except BaseException:
                     pass
                 return
             rate = self._calculate_rate(
@@ -100,7 +99,7 @@ class CollectorAPI(object):
             if rate is None:
                 try:
                     log.debug('no rate for', metric_name)
-                except Exception:
+                except BaseException:
                     pass
                 return
             mdata = {'value': rate,
@@ -162,7 +161,7 @@ class CollectorAPI(object):
             if metric_name is None:
                 continue
             value = metric_data['value']
-            if isinstance(value, string_types):
+            if isinstance(value, (str, unicode,)):
                 value = value.replace(',', '.')
             mdata = {'value': value,
                      'value_raw': value,
@@ -202,7 +201,7 @@ class CollectorAPI(object):
                                    service=service)\
             .delete()
 
-        for ifname, ifdata in data['data']['network'].items():
+        for ifname, ifdata in data['data']['network'].iteritems():
             for tx_label, tx_value in ifdata['traffic'].items():
                 mdata = {'value': tx_value,
                          'value_raw': tx_value,
@@ -457,7 +456,7 @@ class CollectorAPI(object):
                                   'label': label,
                                   'samples_count': samples,
                                   'value_raw': value or 0,
-                                  'value_num': value if isinstance(value, integer_types + (float, Decimal,)) else None})
+                                  'value_num': value if isinstance(value, (int, float, long, Decimal,)) else None})
             log.debug(MetricValue.add(**metric_values))
 
     def process(self, service, data, valid_from, valid_to, *args, **kwargs):
@@ -938,7 +937,7 @@ class CollectorAPI(object):
                                 try:
                                     rb = ResourceBase.objects.get(id=r_id)
                                     t['href'] = rb.detail_url
-                                except Exception:
+                                except BaseException:
                                     t['href'] = ""
                     else:
                         t[scol] = row.pop(scol)

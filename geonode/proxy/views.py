@@ -24,12 +24,10 @@ import shutil
 import logging
 import tempfile
 import traceback
-import io
-import gzip
 
 from hyperlink import URL
 from slugify import slugify
-from urllib.parse import urlparse, urlsplit, urljoin
+from urlparse import urlparse, urlsplit, urljoin
 
 from django.conf import settings
 from django.http import HttpResponse
@@ -179,7 +177,9 @@ def proxy(request, url=None, response_callback=None,
     # decompress GZipped responses if not enabled
     # if content and response and response.getheader('Content-Encoding') == 'gzip':
     if content and content_type and content_type == 'gzip':
-        buf = io.BytesIO(content)
+        from StringIO import StringIO
+        import gzip
+        buf = StringIO(content)
         f = gzip.GzipFile(fileobj=buf)
         content = f.read()
 
@@ -207,7 +207,7 @@ def proxy(request, url=None, response_callback=None,
                 _s = text.decode("utf-8", "replace")
                 try:
                     found = re.search('<b>Message</b>(.+?)</p>', _s).group(1).strip()
-                except Exception:
+                except BaseException:
                     found = _s
                 return found
 
@@ -247,8 +247,8 @@ def download(request, resourceid, sender=Layer):
                 if layer_files:
                     # Copy all Layer related files into a temporary folder
                     for l in layer_files:
-                        if storage.exists(str(l.file)):
-                            geonode_layer_path = storage.path(str(l.file))
+                        if storage.exists(l.file):
+                            geonode_layer_path = storage.path(l.file)
                             base_filename, original_ext = os.path.splitext(geonode_layer_path)
                             shutil.copy2(geonode_layer_path, target_folder)
                         else:
@@ -296,11 +296,11 @@ def download(request, resourceid, sender=Layer):
                         sld_file = open(sld_file_path, "w")
                         sld_file.write(sld_remote_content.strip())
                         sld_file.close()
-                    except Exception:
+                    except BaseException:
                         traceback.print_exc()
                         tb = traceback.format_exc()
                         logger.debug(tb)
-            except Exception:
+            except BaseException:
                 traceback.print_exc()
                 tb = traceback.format_exc()
                 logger.debug(tb)
@@ -333,7 +333,7 @@ def download(request, resourceid, sender=Layer):
                                 user=request.user)
                             raw.decode_content = True
                             shutil.copyfileobj(raw, link_file)
-                        except Exception:
+                        except BaseException:
                             traceback.print_exc()
                             tb = traceback.format_exc()
                             logger.debug(tb)
@@ -344,7 +344,7 @@ def download(request, resourceid, sender=Layer):
                         link_file = open(link_file, "w")
                         link_file.write(link.url.strip())
                         link_file.close()
-            except Exception:
+            except BaseException:
                 traceback.print_exc()
                 tb = traceback.format_exc()
                 logger.debug(tb)
@@ -355,7 +355,7 @@ def download(request, resourceid, sender=Layer):
             zip_dir(target_folder, target_file)
             register_event(request, 'download', instance)
             response = HttpResponse(
-                content=open(target_file, mode='rb'),
+                content=open(target_file),
                 status=200,
                 content_type="application/zip")
             response['Content-Disposition'] = 'attachment; filename="%s"' % target_file_name

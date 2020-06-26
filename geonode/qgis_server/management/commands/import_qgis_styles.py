@@ -32,17 +32,18 @@ class Command(BaseCommand):
         for l in layers:
             try:
                 l.qgis_layer
-            except Exception:
-                print("Layer {} has no associated qgis_layer".format(l.name))
+            except:
+                print 'Layer %s has no associated qgis_layer' % l.name
                 continue
 
             if l.qgis_layer:
-                print("Fetching styles for layer %s".format(l.name))
+                print 'Fetching styles for layer %s' % l.name
 
                 try:
                     styles = style_list(l, internal=False)
-                except Exception:
-                    print("Failed to fetch styles")
+                except:
+                    print 'Failed to fetch styles'
                     continue
 
-                print("Successfully fetch %d style(s)\n".format(len(styles))
+                print 'Successfully fetch %d style(s)' % len(styles)
+                print ''

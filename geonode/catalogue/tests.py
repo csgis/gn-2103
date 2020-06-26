@@ -21,10 +21,9 @@
 from geonode.tests.base import GeoNodeBaseTestSupport
 
 import json
-from django.urls import reverse
-from geonode.compat import ensure_string
-from geonode.catalogue import get_catalogue
+from django.core.urlresolvers import reverse
 from geonode.base.models import ResourceBase
+from geonode.catalogue import get_catalogue
 
 
 class CatalogueTest(GeoNodeBaseTestSupport):
@@ -41,27 +40,26 @@ class CatalogueTest(GeoNodeBaseTestSupport):
         """Test that the data.json representation behaves correctly"""
 
         response = self.client.get(reverse('data_json')).content
-        data_json = json.loads(ensure_string(response))
+        data_json = json.loads(response)
 
         len1 = len(ResourceBase.objects.all())
         len2 = len(data_json)
-        self.assertEqual(len1, len2, 'Expected equality of json and repository lengths')
+        self.assertEquals(len1, len2,
+                          'Expected equality of json and repository lengths')
 
         record_keys = [
-            'publisher',
-            'title',
-            'description',
-            'mbox',
-            'keyword',
-            'modified',
-            'contactPoint',
-            'accessLevel',
-            'distribution',
-            'identifier',
+            u'publisher',
+            u'identifier',
+            u'description',
+            u'keyword',
+            u'title',
+            u'modified',
+            u'contactPoint',
+            u'accessLevel',
+            u'mbox',
+            u'distribution'
         ]
 
         for record in data_json:
-            self.assertEqual(
-                sorted(record_keys),
-                sorted(list(record.keys())),
-                'Expected specific list of fields to output')
+            self.assertEquals(record_keys, record.keys(),
+                              'Expected specific list of fields to output')

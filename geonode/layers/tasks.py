@@ -33,9 +33,11 @@ def delete_layer(self, layer_id):
     """
     Deletes a layer.
     """
+
     try:
         layer = Layer.objects.get(id=layer_id)
     except Layer.DoesNotExist:
         return
-    logger.debug('Deleting Layer {0}'.format(layer))
+
+    logger.info('Deleting Layer {0}'.format(layer))
     layer.delete()

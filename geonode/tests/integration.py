@@ -34,7 +34,7 @@ from decimal import Decimal
 from tastypie.test import ResourceTestCaseMixin
 
 from django.conf import settings
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test.utils import override_settings
@@ -47,7 +47,6 @@ from geonode.layers.utils import (
 )
 from geonode.maps.models import Map
 from geonode.layers.models import Layer
-from geonode.compat import ensure_string
 from geonode.utils import check_ogc_backend
 from geonode.decorators import on_ogc_backend
 from geonode.base.populate_test_data import all_public
@@ -87,7 +86,7 @@ r"""
  --------------------
 
  1)
-  (http://docs.geonode.org/en/2.10.x/install/core/index.html?highlight=paver#run-geonode-for-the-first-time-in-debug-mode)
+  (http://docs.geonode.org/en/2.10.2/install/core/index.html?highlight=paver#run-geonode-for-the-first-time-in-debug-mode)
 
   $ paver setup
 
@@ -276,7 +275,7 @@ class GeoNodeMapTest(GeoNodeLiveTestSupport):
             bbox_x1 = Decimal('97.109705320000000')
             bbox_y0 = Decimal('-5.518732999999900')
             bbox_y1 = Decimal('-5.303545551999900')
-            srid = 'EPSG:4326'
+            srid = u'EPSG:4326'
 
             self.assertEqual(bbox_x0, uploaded.bbox_x0)
             self.assertEqual(bbox_x1, uploaded.bbox_x1)
@@ -290,7 +289,7 @@ class GeoNodeMapTest(GeoNodeLiveTestSupport):
                 Decimal('97.109705320000000'),
                 Decimal('-5.518732999999900'),
                 Decimal('-5.303545551999900'),
-                'EPSG:4326'
+                u'EPSG:4326'
             ]
             self.assertEqual(expected_bbox, uploaded.bbox)
 
@@ -445,7 +444,7 @@ class GeoNodeMapTest(GeoNodeLiveTestSupport):
                         'Expected specific number of keywords from uploaded layer XML metadata')
 
                 self.assertTrue(
-                    'Airport,Airports,Landing Strips,Runway,Runways' in uploaded.keyword_csv,
+                    u'Airport,Airports,Landing Strips,Runway,Runways' in uploaded.keyword_csv,
                     'Expected CSV of keywords from uploaded layer XML metadata')
 
                 self.assertTrue(
@@ -462,9 +461,9 @@ class GeoNodeMapTest(GeoNodeLiveTestSupport):
                 date.replace(tzinfo=timezone.get_current_timezone())
                 today = date.today()
                 todoc = uploaded.date.today()
-                self.assertEqual((today.day, today.month, today.year),
-                                 (todoc.day, todoc.month, todoc.year),
-                                 'Expected specific date from uploaded layer XML metadata')
+                self.assertEquals((today.day, today.month, today.year),
+                                  (todoc.day, todoc.month, todoc.year),
+                                  'Expected specific date from uploaded layer XML metadata')
 
                 # Set
                 from geonode.layers.metadata import set_metadata
@@ -542,7 +541,7 @@ class GeoNodeMapTest(GeoNodeLiveTestSupport):
                             'Expected specific number of keywords from uploaded layer XML metadata')
 
                     self.assertTrue(
-                        'Airport,Airports,Landing Strips,Runway,Runways' in uploaded.keyword_csv,
+                        u'Airport,Airports,Landing Strips,Runway,Runways' in uploaded.keyword_csv,
                         'Expected CSV of keywords from uploaded layer XML metadata')
 
                     self.assertTrue(
@@ -603,7 +602,7 @@ class GeoNodeMapTest(GeoNodeLiveTestSupport):
                 if os.path.exists(thelayer_zip):
                     uploaded = file_upload(thelayer_zip, overwrite=True, charset='windows-1258')
                     self.assertEqual(uploaded.title, 'Zhejiang Yangcan Yanyu')
-                    # self.assertEqual(len(uploaded.keyword_list()), 2)
+                    self.assertEqual(len(uploaded.keyword_list()), 2)
                     self.assertEqual(uploaded.constraints_other, None)
         finally:
             # Clean up and completely delete the layer
@@ -626,7 +625,7 @@ class GeoNodeMapTest(GeoNodeLiveTestSupport):
                 if os.path.exists(thelayer_zip):
                     uploaded = file_upload(thelayer_zip, overwrite=True, charset='windows-1258')
                     self.assertEqual(uploaded.title, 'Ming Female 1')
-                    # self.assertEqual(len(uploaded.keyword_list()), 2)
+                    self.assertEqual(len(uploaded.keyword_list()), 2)
                     self.assertEqual(uploaded.constraints_other, None)
         finally:
             # Clean up and completely delete the layer
@@ -689,7 +688,7 @@ class GeoNodeMapTest(GeoNodeLiveTestSupport):
             # Clean up and completely delete the layer
             try:
                 thefile.delete()
-            except Exception:
+            except BaseException:
                 pass
 
     @timeout_decorator.timeout(LOCAL_TIMEOUT)
@@ -1001,7 +1000,7 @@ class GeoNodeMapTest(GeoNodeLiveTestSupport):
                 vector_replace_url, post_data)
             # TODO: This should really return a 400 series error with the json dict
             self.assertEqual(response.status_code, 400)
-            response_dict = json.loads(ensure_string(response.content))
+            response_dict = json.loads(response.content)
             self.assertEqual(response_dict['success'], False)
 
             # test replace a vector with a different vector
@@ -1023,7 +1022,7 @@ class GeoNodeMapTest(GeoNodeLiveTestSupport):
                  'charset': 'UTF-8',
                  'permissions': json.dumps(post_permissions)
                  })
-            response_dict = json.loads(ensure_string(response.content))
+            response_dict = json.loads(response.content)
 
             if not response_dict['success'] and 'unknown encoding' in \
                     response_dict['errors']:
@@ -1051,10 +1050,15 @@ class GeoNodeMapTest(GeoNodeLiveTestSupport):
                      'prj_file': layer_prj,
                      'charset': 'UTF-8',
                      'permissions': json.dumps(post_permissions)
-                     })
-                response_dict = json.loads(ensure_string(response.content))
+                    })
+                response_dict = json.loads(response.content)
 
-                if response_dict['success']:
+                if not response_dict['success'] and 'unknown encoding' in \
+                        response_dict['errors']:
+                    pass
+                else:
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(response_dict['success'], True)
                     # Get a Layer object for the newly created layer.
                     new_vector_layer = Layer.objects.get(pk=vector_layer.pk)
 
@@ -1080,7 +1084,7 @@ class GeoNodeMapTest(GeoNodeLiveTestSupport):
                          'shx_file': layer_shx,
                          'prj_file': layer_prj,
                          'permissions': json.dumps(post_permissions)
-                         })
+                        })
                     self.assertTrue(response.status_code in (401, 403))
         finally:
             # Clean up and completely delete the layer
@@ -1091,7 +1095,7 @@ class GeoNodeMapTest(GeoNodeLiveTestSupport):
                     raster_layer.delete()
                 if new_vector_layer:
                     new_vector_layer.delete()
-            except Exception:
+            except BaseException:
                 # tb = traceback.format_exc()
                 # logger.warning(tb)
                 pass
@@ -1116,14 +1120,14 @@ class GeoNodeMapTest(GeoNodeLiveTestSupport):
             self.assertEqual(lyr.title, "Test San Andres y Providencia Administrative")
 
             default_keywords = [
-                'import',
-                'san andreas',
-                'test',
+                u'import',
+                u'san andreas',
+                u'test',
             ]
             if check_ogc_backend(geoserver.BACKEND_PACKAGE):
                 geoserver_keywords = [
-                    'features',
-                    'test_san_andres_y_providencia_administrative'
+                    u'features',
+                    u'test_san_andres_y_providencia_administrative'
                 ]
                 self.assertEqual(
                     set(lyr.keyword_list()),
@@ -1369,7 +1373,7 @@ class LayersStylesApiInteractionTests(
             resp = self.api_client.get(default_style_url)
             if resp.status_code != 200:
                 return
-        except Exception:
+        except BaseException:
             return
         self.assertValidJSONResponse(resp)
         obj = self.deserialize(resp)

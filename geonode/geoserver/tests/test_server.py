@@ -24,19 +24,11 @@ import json
 import os
 import shutil
 import tempfile
-
-try:
-    from urllib.parse import urljoin, urlencode
-except ImportError:
-    # Python 2 compatibility
-    from urllib import urlencode
-    from urlparse import urljoin
-
 from django.core.management import call_command
 from os.path import basename, splitext
 
 from django.conf import settings
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.contrib.auth import get_user_model
 from django.test.utils import override_settings
 
@@ -58,7 +50,6 @@ from geonode.geoserver.helpers import (
     _prepare_thumbnail_body_from_opts)
 
 import logging
-
 logger = logging.getLogger(__name__)
 
 san_andres_y_providencia_sld = """<?xml version="1.0" encoding="UTF-8"?>
@@ -594,19 +585,15 @@ class LayerTests(GeoNodeBaseTestSupport):
         d = None
         try:
             d = tempfile.mkdtemp()
-            files = (
-                "san_andres_y_providencia.sld",
-                "lac.sld",
-                "freshgwabs2.sld",
-                "raster.sld",
-                "line.sld",
-            )
-
-            for f in files:
+            for f in ("san_andres_y_providencia.sld",
+                      "lac.sld",
+                      "freshgwabs2.sld",
+                      "raster.sld",
+                      "line.sld",):
                 path = os.path.join(d, f)
-                with open(path, 'w') as f:
-                    name, ext = splitext(basename(path))
-                    f.write(SLDS[name])
+                f = open(path, "wb")
+                f.write(SLDS[splitext(basename(path))[0]])
+                f.close()
 
             # Test 'san_andres_y_providencia.sld'
             san_andres_y_providencia_sld_file = os.path.join(
@@ -672,10 +659,7 @@ class LayerTests(GeoNodeBaseTestSupport):
                     invalid_layer_typename,
                 )))
         self.assertEquals(response.status_code, 200)
-        content = response.content
-        if isinstance(content, bytes):
-            content = content.decode('UTF-8')
-        response_json = json.loads(content)
+        response_json = json.loads(response.content)
         self.assertEquals(response_json['authorized'], False)
 
         # First test un-authenticated
@@ -685,10 +669,7 @@ class LayerTests(GeoNodeBaseTestSupport):
                 args=(
                     valid_layer_typename,
                 )))
-        content = response.content
-        if isinstance(content, bytes):
-            content = content.decode('UTF-8')
-        response_json = json.loads(content)
+        response_json = json.loads(response.content)
         self.assertEquals(response_json['authorized'], False)
 
         # Next Test with a user that has the proper perms (is owner)
@@ -700,10 +681,7 @@ class LayerTests(GeoNodeBaseTestSupport):
                 args=(
                     valid_layer_typename,
                 )))
-        content = response.content
-        if isinstance(content, bytes):
-            content = content.decode('UTF-8')
-        response_json = json.loads(content)
+        response_json = json.loads(response.content)
         self.assertEquals(response_json['authorized'], True)
 
         # Let's change layer permissions and try again with non-owner
@@ -722,10 +700,7 @@ class LayerTests(GeoNodeBaseTestSupport):
                 args=(
                     valid_layer_typename,
                 )))
-        content = response.content
-        if isinstance(content, bytes):
-            content = content.decode('UTF-8')
-        response_json = json.loads(content)
+        response_json = json.loads(response.content)
         self.assertEquals(response_json['authorized'], False)
 
         response = self.client.post(
@@ -734,25 +709,21 @@ class LayerTests(GeoNodeBaseTestSupport):
                 args=(
                     valid_layer_typename,
                 )))
-        content = response.content
-        if isinstance(content, bytes):
-            content = content.decode('UTF-8')
-        response_json = json.loads(content)
+        response_json = json.loads(response.content)
         self.assertEquals(response_json['authorized'], True)
 
         # Login as a user with the proper permission and test the endpoint
         logged_in = self.client.login(username='admin', password='admin')
         self.assertEquals(logged_in, True)
+
         response = self.client.post(
             reverse(
                 'feature_edit_check',
                 args=(
                     valid_layer_typename,
                 )))
-        content = response.content
-        if isinstance(content, bytes):
-            content = content.decode('UTF-8')
-        response_json = json.loads(content)
+
+        response_json = json.loads(response.content)
         self.assertEquals(response_json['authorized'], True)
 
         layer = Layer.objects.all()[0]
@@ -768,10 +739,7 @@ class LayerTests(GeoNodeBaseTestSupport):
                     args=(
                         valid_layer_typename,
                     )))
-            content = response.content
-            if isinstance(content, bytes):
-                content = content.decode('UTF-8')
-            response_json = json.loads(content)
+            response_json = json.loads(response.content)
             self.assertEquals(response_json['authorized'], True)
 
     @on_ogc_backend(geoserver.BACKEND_PACKAGE)
@@ -780,17 +748,16 @@ class LayerTests(GeoNodeBaseTestSupport):
         """
 
         # Test that HTTP_AUTHORIZATION in request.META is working properly
-        valid_uname_pw = b"bobby:bob"
-        invalid_uname_pw = b"n0t:v@l1d"
+        valid_uname_pw = '%s:%s' % ('bobby', 'bob')
+        invalid_uname_pw = '%s:%s' % ('n0t', 'v@l1d')
 
         valid_auth_headers = {
-            'HTTP_AUTHORIZATION': 'basic ' +
-            base64.b64encode(valid_uname_pw).decode(),
+            'HTTP_AUTHORIZATION': 'basic ' + base64.b64encode(valid_uname_pw),
         }
 
         invalid_auth_headers = {
             'HTTP_AUTHORIZATION': 'basic ' +
-            base64.b64encode(invalid_uname_pw).decode(),
+            base64.b64encode(invalid_uname_pw),
         }
 
         bob = get_user_model().objects.get(username='bobby')
@@ -816,10 +783,7 @@ class LayerTests(GeoNodeBaseTestSupport):
             u'rw': [u'geonode:CA']
         }
         response = self.client.get(reverse('layer_acls'), **valid_auth_headers)
-        content = response.content
-        if isinstance(content, bytes):
-            content = content.decode('UTF-8')
-        response_json = json.loads(content)
+        response_json = json.loads(response.content)
         # 'ro' and 'rw' are unsorted collections
         self.assertEquals(sorted(expected_result), sorted(response_json))
 
@@ -835,39 +799,35 @@ class LayerTests(GeoNodeBaseTestSupport):
 
         # Basic check that the returned content is at least valid json
         response = self.client.get(reverse('layer_acls'))
-        content = response.content
-        if isinstance(content, bytes):
-            content = content.decode('UTF-8')
-        response_json = json.loads(content)
+        response_json = json.loads(response.content)
 
         self.assertEquals('admin', response_json['fullname'])
         self.assertEquals('ad@m.in', response_json['email'])
+
+        # TODO Lots more to do here once jj0hns0n understands the ACL system
+        # better
 
     @on_ogc_backend(geoserver.BACKEND_PACKAGE)
     def test_resolve_user(self):
         """Verify that the resolve_user view is behaving as expected
         """
         # Test that HTTP_AUTHORIZATION in request.META is working properly
-        valid_uname_pw = b"admin:admin"
-        invalid_uname_pw = b"n0t:v@l1d"
+        valid_uname_pw = "%s:%s" % ('admin', 'admin')
+        invalid_uname_pw = "%s:%s" % ("n0t", "v@l1d")
 
         valid_auth_headers = {
-            'HTTP_AUTHORIZATION': 'basic ' +
-            base64.b64encode(valid_uname_pw).decode(),
+            'HTTP_AUTHORIZATION': 'basic ' + base64.b64encode(valid_uname_pw),
         }
 
         invalid_auth_headers = {
             'HTTP_AUTHORIZATION': 'basic ' +
-            base64.b64encode(invalid_uname_pw).decode(),
+            base64.b64encode(invalid_uname_pw),
         }
 
         response = self.client.get(
             reverse('layer_resolve_user'),
             **valid_auth_headers)
-        content = response.content
-        if isinstance(content, bytes):
-            content = content.decode('UTF-8')
-        response_json = json.loads(content)
+        response_json = json.loads(response.content)
         self.assertEquals({'geoserver': False,
                            'superuser': True,
                            'user': 'admin',
@@ -887,10 +847,7 @@ class LayerTests(GeoNodeBaseTestSupport):
 
         # Basic check that the returned content is at least valid json
         response = self.client.get(reverse('layer_resolve_user'))
-        content = response.content
-        if isinstance(content, bytes):
-            content = content.decode('UTF-8')
-        response_json = json.loads(content)
+        response_json = json.loads(response.content)
 
         self.assertEquals('admin', response_json['user'])
         self.assertEquals('admin', response_json['fullname'])
@@ -967,6 +924,7 @@ class UtilsTests(GeoNodeBaseTestSupport):
         """
         Tests that OGC_SERVER_SETTINGS are built if they do not exist in the settings.
         """
+        from urlparse import urljoin
         from django.urls import reverse, resolve
         from ..ows import _wcs_get_capabilities, _wfs_get_capabilities, _wms_get_capabilities
 
@@ -982,33 +940,30 @@ class UtilsTests(GeoNodeBaseTestSupport):
         self.assertIsNone(ogc_settings.SFDSDFDSF)
 
         # Testing REST endpoints
-        route = resolve('/gs/rest/layers').route
-        self.assertEqual(route, '^gs/rest/layers')
+        route = resolve('/gs/rest/layers')
+        self.assertIsNotNone(route)
 
-        route = resolve('/gs/rest/imports').route
-        self.assertEqual(route, '^gs/rest/imports')
+        route = resolve('/gs/rest/imports')
+        self.assertIsNotNone(route)
 
-        route = resolve('/gs/rest/sldservice').route
-        self.assertEqual(route, '^gs/rest/sldservice')
+        route = resolve('/gs/rest/sldservice')
+        self.assertIsNotNone(route)
 
         store_resolver = resolve('/gs/rest/stores/geonode_data/')
         self.assertEqual(store_resolver.url_name, 'stores')
         self.assertEqual(store_resolver.kwargs['store_type'], 'geonode_data')
-        self.assertEqual(store_resolver.route, '^gs/rest/stores/(?P<store_type>\\w+)/$')
 
         sld_resolver = resolve('/gs/rest/styles')
         self.assertIsNone(sld_resolver.url_name)
         self.assertTrue('workspace' not in sld_resolver.kwargs)
         self.assertEqual(sld_resolver.kwargs['proxy_path'], '/gs/rest/styles')
         self.assertEqual(sld_resolver.kwargs['downstream_path'], 'rest/styles')
-        self.assertEqual(sld_resolver.route, '^gs/rest/styles')
 
         sld_resolver = resolve('/gs/rest/workspaces/geonode/styles')
         self.assertIsNone(sld_resolver.url_name)
         self.assertEqual(sld_resolver.kwargs['workspace'], 'geonode')
         self.assertEqual(sld_resolver.kwargs['proxy_path'], '/gs/rest/workspaces')
         self.assertEqual(sld_resolver.kwargs['downstream_path'], 'rest/workspaces')
-        self.assertEqual(sld_resolver.route, '^gs/rest/workspaces/(?P<workspace>\\w+)')
 
         # Testing OWS endpoints
         wcs = _wcs_get_capabilities()
@@ -1017,13 +972,10 @@ class UtilsTests(GeoNodeBaseTestSupport):
 
         try:
             wcs_url = urljoin(settings.SITEURL, reverse('ows_endpoint'))
-        except Exception:
+        except BaseException:
             wcs_url = urljoin(ogc_settings.PUBLIC_LOCATION, 'ows')
-
-        self.assertTrue(wcs.startswith(wcs_url))
-        self.assertIn("service=WCS", wcs)
-        self.assertIn("request=GetCapabilities", wcs)
-        self.assertIn("version=2.0.1", wcs)
+        self.assertEquals(wcs,
+                          '%s?version=2.0.1&request=GetCapabilities&service=WCS' % wcs_url)
 
         wfs = _wfs_get_capabilities()
         logger.debug(wfs)
@@ -1031,12 +983,10 @@ class UtilsTests(GeoNodeBaseTestSupport):
 
         try:
             wfs_url = urljoin(settings.SITEURL, reverse('ows_endpoint'))
-        except Exception:
+        except BaseException:
             wfs_url = urljoin(ogc_settings.PUBLIC_LOCATION, 'ows')
-        self.assertTrue(wfs.startswith(wfs_url))
-        self.assertIn("service=WFS", wfs)
-        self.assertIn("request=GetCapabilities", wfs)
-        self.assertIn("version=1.1.0", wfs)
+        self.assertEquals(wfs,
+                          '%s?version=1.1.0&request=GetCapabilities&service=WFS' % wfs_url)
 
         wms = _wms_get_capabilities()
         logger.debug(wms)
@@ -1044,14 +994,13 @@ class UtilsTests(GeoNodeBaseTestSupport):
 
         try:
             wms_url = urljoin(settings.SITEURL, reverse('ows_endpoint'))
-        except Exception:
+        except BaseException:
             wms_url = urljoin(ogc_settings.PUBLIC_LOCATION, 'ows')
-        self.assertTrue(wms.startswith(wms_url))
-        self.assertIn("service=WMS", wms)
-        self.assertIn("request=GetCapabilities", wms)
-        self.assertIn("version=1.3.0", wms)
+        self.assertEquals(wms,
+                          '%s?version=1.3.0&request=GetCapabilities&service=WMS' % wms_url)
 
         # Test OWS Download Links
+        import urllib
         from geonode.geoserver.ows import wcs_links, wfs_links, wms_links
         instance = Layer.objects.all()[0]
         bbox = instance.bbox
@@ -1078,7 +1027,7 @@ class UtilsTests(GeoNodeBaseTestSupport):
 
         # WMS Links
         wms_links = wms_links(ogc_settings.public_url + 'wms?',
-                              instance.alternate,
+                              instance.alternate.encode('utf-8'),
                               bbox,
                               srid,
                               height,
@@ -1086,7 +1035,7 @@ class UtilsTests(GeoNodeBaseTestSupport):
         self.assertIsNotNone(wms_links)
         self.assertEquals(len(wms_links), 3)
         wms_url = urljoin(ogc_settings.PUBLIC_LOCATION, 'wms')
-        identifier = urlencode({'layers': instance.alternate})
+        identifier = urllib.urlencode({'layers': instance.alternate.encode('utf-8')})
         for _link in wms_links:
             logger.debug('%s --> %s' % (wms_url, _link[3]))
             self.assertTrue(wms_url in _link[3])
@@ -1095,13 +1044,13 @@ class UtilsTests(GeoNodeBaseTestSupport):
 
         # WFS Links
         wfs_links = wfs_links(ogc_settings.public_url + 'wfs?',
-                              instance.alternate,
+                              instance.alternate.encode('utf-8'),
                               bbox,
                               srid)
         self.assertIsNotNone(wfs_links)
         self.assertEquals(len(wfs_links), 6)
         wfs_url = urljoin(ogc_settings.PUBLIC_LOCATION, 'wfs')
-        identifier = urlencode({'typename': instance.alternate})
+        identifier = urllib.urlencode({'typename': instance.alternate.encode('utf-8')})
         for _link in wfs_links:
             logger.debug('%s --> %s' % (wfs_url, _link[3]))
             self.assertTrue(wfs_url in _link[3])
@@ -1110,13 +1059,13 @@ class UtilsTests(GeoNodeBaseTestSupport):
 
         # WCS Links
         wcs_links = wcs_links(ogc_settings.public_url + 'wcs?',
-                              instance.alternate,
+                              instance.alternate.encode('utf-8'),
                               bbox,
                               srid)
         self.assertIsNotNone(wcs_links)
         self.assertEquals(len(wcs_links), 2)
         wcs_url = urljoin(ogc_settings.PUBLIC_LOCATION, 'wcs')
-        identifier = urlencode({'coverageid': instance.alternate})
+        identifier = urllib.urlencode({'coverageid': instance.alternate.encode('utf-8')})
         for _link in wcs_links:
             logger.debug('%s --> %s' % (wcs_url, _link[3]))
             self.assertTrue(wcs_url in _link[3])
@@ -1143,7 +1092,7 @@ class UtilsTests(GeoNodeBaseTestSupport):
 
         try:
             image = _prepare_thumbnail_body_from_opts(request_body)
-        except Exception as e:
+        except BaseException as e:
             logger.exception(e)
             image = None
         # We are offline here, the layer does not exists in GeoServer

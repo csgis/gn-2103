@@ -20,8 +20,7 @@
 
 import logging
 import traceback
-from urllib.parse import urlencode
-from urllib.request import urlretrieve
+from urllib import urlencode, urlretrieve
 from os.path import splitext
 from math import atan, degrees, sinh, pi
 from defusedxml import lxml as dlxml
@@ -47,7 +46,7 @@ def set_attributes(layer, overwrite=False):
     :type overwrite: bool
     """
     if layer.storeType in ['dataStore']:
-        layer_name = layer.alternate
+        layer_name = layer.alternate.encode('utf-8')
         qgis_layer = QGISServerLayer.objects.get(layer=layer)
 
         qgis_server = geonode_config.QGIS_SERVER_CONFIG['qgis_server_url']
@@ -73,7 +72,7 @@ def set_attributes(layer, overwrite=False):
                 [n.attrib['name'], n.attrib['type']] for n in doc.findall(
                     path) if n.attrib.get('name') and n.attrib.get('type')]
 
-        except Exception:
+        except BaseException:
             tb = traceback.format_exc()
             logger.debug(tb)
             attribute_map = []
@@ -109,7 +108,7 @@ def set_attributes(layer, overwrite=False):
             logger.debug(
                 'Going to delete [%s] for [%s]',
                 la.attribute,
-                layer.name)
+                layer.name.encode('utf-8'))
             la.delete()
 
     # Add new layer attributes if they don't already exist.
@@ -130,7 +129,7 @@ def set_attributes(layer, overwrite=False):
                     logger.debug(
                         'Created [%s] attribute for [%s]',
                         field,
-                        layer.name)
+                        layer.name.encode('utf-8'))
     else:
         logger.debug('No attributes found')
 

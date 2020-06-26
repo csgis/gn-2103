@@ -17,16 +17,13 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 #########################################################################
-
-import traceback
-
 from django import template
 from django.conf import settings
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.utils.translation import ugettext as _
 from django.core.files.storage import FileSystemStorage
 
-from urllib.parse import urlsplit, urljoin
+from urlparse import urlsplit, urljoin
 
 from geonode.utils import resolve_object
 from geonode.layers.models import Layer, LayerFile
@@ -62,10 +59,9 @@ def original_link_available(context, resourceid, url):
                     item for idx, item in enumerate(LayerFile.objects.filter(upload_session=upload_session))]
                 if layer_files:
                     for l in layer_files:
-                        if not storage.exists(str(l.file)):
+                        if not storage.exists(l.file):
                             return False
-        except Exception:
-            traceback.print_exc()
+        except BaseException:
             return False
     if layer_files:
         return True

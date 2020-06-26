@@ -28,17 +28,20 @@ import gisdata
 import logging
 from lxml import etree
 from defusedxml import lxml as dlxml
-from urllib.request import urlopen, Request
-from urllib.parse import urljoin
+try:
+    from urllib.request import urlopen, Request
+    from urllib.parse import urljoin
+except ImportError:
+    from urllib2 import urlopen, Request
+    from urlparse import urljoin
 
 from django.conf import settings
 from django.test.utils import override_settings
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.contrib.auth import get_user_model
 
 from geonode import geoserver
 from geonode.layers.models import Layer
-from geonode.compat import ensure_string
 from geonode.tests.utils import check_layer
 from geonode.layers.utils import file_upload
 from geonode.decorators import on_ogc_backend
@@ -270,7 +273,7 @@ class GeoNodePermissionsTest(GeoNodeLiveTestSupport):
 
             # by default the uploaded layer is published
             self.assertTrue(layer.is_published, True)
-            self.assertTrue(any(str_to_check in ensure_string(s) for s in response.readlines()))
+            self.assertTrue(any(str_to_check in s for s in response.readlines()))
         finally:
             # Clean up and completely delete the layer
             layer.delete()
@@ -305,7 +308,7 @@ class GeoNodePermissionsTest(GeoNodeLiveTestSupport):
 
                 request = Request(url)
                 response = urlopen(request)
-                self.assertTrue(any(str_to_check in ensure_string(s) for s in response.readlines()))
+                self.assertTrue(any(str_to_check in s for s in response.readlines()))
             finally:
                 # Clean up and completely delete the layer
                 layer.delete()

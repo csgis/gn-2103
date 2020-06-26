@@ -50,7 +50,7 @@ class RenderMenuTagTest(GeoNodeBaseTestSupport):
             name='test_menu_placeholder_0'
         )
         self.placeholder_1 = MenuPlaceholder.objects.create(
-            name='test_unicode_äöü_menu_placeholder_1'
+            name=u'test_unicode_äöü_menu_placeholder_1'
         )
         self.menu_0_0 = Menu.objects.create(
             title='test_menu_0_0',
@@ -65,7 +65,7 @@ class RenderMenuTagTest(GeoNodeBaseTestSupport):
 
         )
         self.menu_1_0 = Menu.objects.create(
-            title='test_unicode_äöü_menu_1_0',
+            title=u'test_unicode_äöü_menu_1_0',
             order=0,
             placeholder=self.placeholder_1
 
@@ -106,14 +106,14 @@ class RenderMenuTagTest(GeoNodeBaseTestSupport):
             menu=self.menu_0_1
         )
         self.menu_item_1_0_0 = MenuItem.objects.create(
-            title='test_unicode_äöü_menu_item_1_0_0',
+            title=u'test_unicode_äöü_menu_item_1_0_0',
             order=0,
             blank_target=False,
             url='/about',
             menu=self.menu_1_0
         )
         self.menu_item_1_0_1 = MenuItem.objects.create(
-            title='test_unicode_äöü_menu_item_1_0_1',
+            title=u'test_unicode_äöü_menu_item_1_0_1',
             order=1,
             blank_target=False,
             url='/about',
@@ -183,21 +183,21 @@ class RenderMenuTagTest(GeoNodeBaseTestSupport):
         self.assertNotIn(
             self.menu_1_0.title,
             rendered,
-            'No "{}" string expected in the rendered template'.format(
+            u'No "{}" string expected in the rendered template'.format(
                 self.menu_1_0.title
             )
         )
         self.assertNotIn(
             self.menu_item_1_0_0.title,
             rendered,
-            'No "{}" string expected in the rendered template'.format(
+            u'No "{}" string expected in the rendered template'.format(
                 self.menu_item_1_0_0.title
             )
         )
         self.assertNotIn(
             self.menu_item_1_0_1.title,
             rendered,
-            'No "{}" string expected in the rendered template'.format(
+            u'No "{}" string expected in the rendered template'.format(
                 self.menu_item_1_0_1.title
             )
         )
@@ -265,21 +265,21 @@ class RenderMenuTagTest(GeoNodeBaseTestSupport):
         self.assertIn(
             self.menu_1_0.title,
             rendered,
-            'Expected "{}" string in the rendered template'.format(
+            u'Expected "{}" string in the rendered template'.format(
                 self.menu_1_0.title
             )
         )
         self.assertIn(
             self.menu_item_1_0_0.title,
             rendered,
-            'Expected "{}" string in the rendered template'.format(
+            u'Expected "{}" string in the rendered template'.format(
                 self.menu_item_1_0_0.title
             )
         )
         self.assertIn(
             self.menu_item_1_0_1.title,
             rendered,
-            'Expected "{}" string in the rendered template'.format(
+            u'Expected "{}" string in the rendered template'.format(
                 self.menu_item_1_0_1.title
             )
         )
@@ -347,21 +347,21 @@ class RenderMenuTagTest(GeoNodeBaseTestSupport):
         self.assertNotIn(
             self.menu_1_0.title,
             rendered,
-            'No "{}" string expected in the rendered template'.format(
+            u'No "{}" string expected in the rendered template'.format(
                 self.menu_1_0.title
             )
         )
         self.assertNotIn(
             self.menu_item_1_0_0.title,
             rendered,
-            'No "{}" string expected in the rendered template'.format(
+            u'No "{}" string expected in the rendered template'.format(
                 self.menu_item_1_0_0.title
             )
         )
         self.assertNotIn(
             self.menu_item_1_0_1.title,
             rendered,
-            'No "{}" string expected in the rendered template'.format(
+            u'No "{}" string expected in the rendered template'.format(
                 self.menu_item_1_0_1.title
             )
         )
@@ -429,21 +429,21 @@ class RenderMenuTagTest(GeoNodeBaseTestSupport):
         self.assertIn(
             self.menu_1_0.title,
             rendered,
-            'Expected "{}" string in the rendered template'.format(
+            u'Expected "{}" string in the rendered template'.format(
                 self.menu_1_0.title
             )
         )
         self.assertIn(
             self.menu_item_1_0_0.title,
             rendered,
-            'Expected "{}" string in the rendered template'.format(
+            u'Expected "{}" string in the rendered template'.format(
                 self.menu_item_1_0_0.title
             )
         )
         self.assertIn(
             self.menu_item_1_0_1.title,
             rendered,
-            'Expected "{}" string in the rendered template'.format(
+            u'Expected "{}" string in the rendered template'.format(
                 self.menu_item_1_0_1.title
             )
         )

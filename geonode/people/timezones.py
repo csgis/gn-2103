@@ -17,6 +17,9 @@
 #
 #########################################################################
 
+from __future__ import unicode_literals
+
+
 TIMEZONES = [
     ("Africa/Abidjan", "Africa/Abidjan"),
     ("Africa/Accra", "Africa/Accra"),

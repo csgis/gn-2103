@@ -21,7 +21,7 @@
 import logging
 import pytz
 import hashlib
-from six import string_types
+import types
 
 from datetime import datetime
 from django.conf import settings
@@ -42,12 +42,8 @@ FILTER_URLS = (settings.MEDIA_URL,
 
 class MonitoringMiddleware(object):
 
-    def __init__(self, get_response):
-        self.get_response = get_response
+    def __init__(self):
         self.setup_logging()
-
-    def __call__(self, request):
-        return self.get_response(request)
 
     def setup_logging(self):
         self.log = logging.getLogger('{}.catcher'.format(__name__))
@@ -78,7 +74,7 @@ class MonitoringMiddleware(object):
         current = request.path
 
         for skip_url in settings.MONITORING_SKIP_PATHS:
-            if isinstance(skip_url, string_types):
+            if isinstance(skip_url, types.StringTypes):
                 if current.startswith(skip_url):
                     return False
             elif hasattr(skip_url, 'match'):
@@ -128,7 +124,7 @@ class MonitoringMiddleware(object):
         if settings.USER_ANALYTICS_ENABLED:
             meta.update({
                 'user_identifier': hashlib.sha256(request.session.session_key or '').hexdigest(),
-                'user_username': request.user.username if request.user.is_authenticated else 'AnonymousUser'
+                'user_username': request.user.username if request.user.is_authenticated() else 'AnonymousUser'
             })
 
         request._monitoring = meta

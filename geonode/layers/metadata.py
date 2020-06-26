@@ -42,7 +42,7 @@ def set_metadata(xml):
 
     # check if document is XML
     try:
-        exml = dlxml.fromstring(xml.encode())
+        exml = dlxml.fromstring(xml)
     except Exception as err:
         raise GeoNodeException(
             'Uploaded XML document is not XML: %s' % str(err))
@@ -51,7 +51,7 @@ def set_metadata(xml):
     tagname = get_tagname(exml)
 
     if tagname == 'GetRecordByIdResponse':  # strip CSW element
-        LOGGER.debug('stripping CSW root element')
+        LOGGER.info('stripping CSW root element')
         exml = exml.getchildren()[0]
         tagname = get_tagname(exml)
 

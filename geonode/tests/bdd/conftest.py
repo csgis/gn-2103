@@ -20,7 +20,7 @@
 
 import os
 # import sys
-from urllib.parse import urlparse
+from urlparse import urlparse
 
 import django
 import pytest

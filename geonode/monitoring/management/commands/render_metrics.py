@@ -17,18 +17,22 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 #########################################################################
+from __future__ import print_function
 
 import pytz
+import types
 import logging
+import argparse
 import timeout_decorator
 
 from datetime import datetime, timedelta
-from six import string_types
 
 from django.core.management.base import BaseCommand, CommandError
 from django.utils.translation import ugettext_noop as _
 
 from geonode.utils import parse_datetime
+from geonode.monitoring.models import Service, MonitoredResource, MetricLabel
+from geonode.monitoring.service_handlers import get_for_service
 from geonode.monitoring.collector import CollectorAPI
 from geonode.monitoring.utils import TypeChecks
 
@@ -86,7 +90,7 @@ class Command(BaseCommand):
         label = options['label']
         if not metric_names:
             raise CommandError("No metric name")
-        if isinstance(metric_names, string_types):
+        if isinstance(metric_names, types.StringTypes):
             metric_names = [metric_names]
         for m in metric_names:
             #def get_metrics_for(self, metric_name, valid_from=None, valid_to=None, interval=None, service=None, label=None, resource=None):

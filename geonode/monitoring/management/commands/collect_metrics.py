@@ -17,6 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 #########################################################################
+from __future__ import print_function
 
 import pytz
 import logging
@@ -96,15 +97,15 @@ class Command(BaseCommand):
                                until=options['until'],
                                force_check=options['force_check'],
                                format=options['format'])
-            except Exception as err:
+            except Exception, err:
                 log.error("Cannot collect from %s: %s", s, err, exc_info=err)
                 if options['halt_on_errors']:
                     raise
         if not options['do_not_clear']:
-            log.debug("Clearing old data")
+            log.info("Clearing old data")
             c.clear_old_data()
         if options['emit_notifications']:
-            log.debug("Processing notifications for %s", options['until'])
+            log.info("Processing notifications for %s", options['until'])
             s = Service.objects.first()
             interval = s.check_interval
             now = datetime.utcnow().replace(tzinfo=pytz.utc)
@@ -116,13 +117,13 @@ class Command(BaseCommand):
         utc = pytz.utc
         try:
             local_tz = pytz.timezone(datetime.now(tzlocal()).tzname())
-        except Exception:
+        except:
             local_tz = pytz.timezone(settings.TIME_ZONE)
         now = datetime.utcnow().replace(tzinfo=utc)
         Handler = get_for_service(service.service_type.name)
         try:
             service.last_check = service.last_check.astimezone(utc)
-        except Exception:
+        except:
             service.last_check = service.last_check.replace(tzinfo=utc) if service.last_check else now
 
         if not until:

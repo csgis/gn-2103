@@ -67,11 +67,11 @@ def do_login(sender, user, request, **kwargs):
     Take action on user login. Generate a new user access_token to be shared
     with GeoServer, and store it into the request.session
     """
-    if user and user.is_authenticated:
+    if user and user.is_authenticated():
         token = None
         try:
             token = get_or_create_token(user)
-        except Exception:
+        except BaseException:
             u = uuid1()
             token = u.hex
             tb = traceback.format_exc()
@@ -87,7 +87,7 @@ def do_logout(sender, user, request, **kwargs):
     if 'access_token' in request.session:
         try:
             delete_old_tokens(user)
-        except Exception:
+        except BaseException:
             tb = traceback.format_exc()
             logger.debug(tb)
         remove_session_token(request.session)

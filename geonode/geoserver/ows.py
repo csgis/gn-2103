@@ -21,10 +21,11 @@
 import logging
 
 from django.conf import settings
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.utils.translation import ugettext as _
+import urllib
+from urlparse import urljoin
 
-from urllib.parse import urlencode, urljoin
 from .helpers import OGC_Servers_Handler
 
 logger = logging.getLogger(__name__)
@@ -37,11 +38,11 @@ DEFAULT_EXCLUDE_FORMATS = ['PNG', 'JPEG', 'GIF', 'TIFF']
 def _wcs_get_capabilities():
     try:
         wcs_url = urljoin(settings.SITEURL, reverse('ows_endpoint'))
-    except Exception:
+    except BaseException:
         wcs_url = urljoin(ogc_settings.PUBLIC_LOCATION, 'ows')
     wcs_url += '&' if '?' in wcs_url else '?'
 
-    return wcs_url + urlencode({
+    return wcs_url + urllib.urlencode({
         'service': 'WCS',
         'request': 'GetCapabilities',
         'version': '2.0.1',
@@ -60,7 +61,7 @@ def _wcs_link(wcs_url, identifier, mime, srid=None, bbox=None):
         wcs_params['srs'] = srid
     if bbox:
         wcs_params['bbox'] = bbox
-    return wcs_url + urlencode(wcs_params)
+    return wcs_url + urllib.urlencode(wcs_params)
 
 
 def wcs_links(wcs_url, identifier, bbox=None, srid=None):
@@ -78,11 +79,11 @@ def wcs_links(wcs_url, identifier, bbox=None, srid=None):
 def _wfs_get_capabilities():
     try:
         wfs_url = urljoin(settings.SITEURL, reverse('ows_endpoint'))
-    except Exception:
+    except BaseException:
         wfs_url = urljoin(ogc_settings.PUBLIC_LOCATION, 'ows')
     wfs_url += '&' if '?' in wfs_url else '?'
 
-    return wfs_url + urlencode({
+    return wfs_url + urllib.urlencode({
         'service': 'WFS',
         'request': 'GetCapabilities',
         'version': '1.1.0',
@@ -102,7 +103,7 @@ def _wfs_link(wfs_url, identifier, mime, extra_params, bbox=None, srid=None):
     if bbox:
         params['bbox'] = bbox
     params.update(extra_params)
-    return wfs_url + urlencode(params)
+    return wfs_url + urllib.urlencode(params)
 
 
 def wfs_links(wfs_url, identifier, bbox=None, srid=None):
@@ -124,11 +125,11 @@ def wfs_links(wfs_url, identifier, bbox=None, srid=None):
 def _wms_get_capabilities():
     try:
         wms_url = urljoin(settings.SITEURL, reverse('ows_endpoint'))
-    except Exception:
+    except BaseException:
         wms_url = urljoin(ogc_settings.PUBLIC_LOCATION, 'ows')
     wms_url += '&' if '?' in wms_url else '?'
 
-    return wms_url + urlencode({
+    return wms_url + urllib.urlencode({
         'service': 'WMS',
         'request': 'GetCapabilities',
         'version': '1.3.0',
@@ -149,7 +150,7 @@ def _wms_link(wms_url, identifier, mime, height, width, srid=None, bbox=None):
     if bbox:
         wms_params['bbox'] = bbox
 
-    return wms_url + urlencode(wms_params)
+    return wms_url + urllib.urlencode(wms_params)
 
 
 def wms_links(wms_url, identifier, bbox, srid, height, width):

@@ -20,17 +20,15 @@
 
 import math
 import logging
-import six
-from urllib.parse import quote, urlsplit
+import urlparse
 import traceback
 from itertools import chain
-from six import string_types
 
 from guardian.shortcuts import get_perms
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ObjectDoesNotExist
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.shortcuts import redirect
 from django.core.serializers.json import DjangoJSONEncoder
 from django.http import HttpResponse, HttpResponseRedirect, HttpResponseNotAllowed, HttpResponseServerError, Http404
@@ -75,8 +73,6 @@ from geonode.monitoring import register_event
 from geonode.monitoring.models import EventType
 from requests.compat import urljoin
 from deprecated import deprecated
-
-from dal import autocomplete
 
 if check_ogc_backend(geoserver.BACKEND_PACKAGE):
     # FIXME: The post service providing the map_status object
@@ -175,7 +171,7 @@ def map_detail(request, mapid, snapshot=None, template='maps/map_detail.html'):
     if settings.SOCIAL_ORIGINS:
         context_dict["social_links"] = build_social_links(request, map_obj)
 
-    if request.user.is_authenticated:
+    if request.user.is_authenticated():
         if getattr(settings, 'FAVORITE_ENABLED', False):
             from geonode.favorite.utils import get_favorite_info
             context_dict["favorite_info"] = get_favorite_info(request.user, map_obj)
@@ -208,7 +204,9 @@ def map_metadata(
         category_form = CategoryForm(request.POST, prefix="category_choice_field", initial=int(
             request.POST["category_choice_field"]) if "category_choice_field" in request.POST and
             request.POST["category_choice_field"] else None)
-        tkeywords_form = TKeywordForm(request.POST)
+        tkeywords_form = TKeywordForm(
+            prefix="tkeywords",
+            initial={'tkeywords': request.POST.getlist('tkeywords-tkeywords')})
     else:
         map_form = MapForm(instance=map_obj, prefix="resource")
         category_form = CategoryForm(
@@ -234,11 +232,13 @@ def map_metadata(
                             tkeywords_list += "," + \
                                 tkl_ids if len(
                                     tkeywords_list) > 0 else tkl_ids
-                except Exception:
+                except BaseException:
                     tb = traceback.format_exc()
                     logger.error(tb)
 
-        tkeywords_form = TKeywordForm(instance=map_obj)
+        tkeywords_form = TKeywordForm(
+            prefix="tkeywords",
+            initial={'tkeywords': tkeywords_list})
 
     if request.method == "POST" and map_form.is_valid(
     ) and category_form.is_valid():
@@ -251,7 +251,7 @@ def map_metadata(
 
         new_category = None
         if category_form and 'category_choice_field' in category_form.cleaned_data and\
-                category_form.cleaned_data['category_choice_field']:
+        category_form.cleaned_data['category_choice_field']:
             new_category = TopicCategory.objects.get(
                 id=int(category_form.cleaned_data['category_choice_field']))
 
@@ -300,19 +300,34 @@ def map_metadata(
 
         try:
             # Keywords from THESAURUS management
-            # Rewritten to work with updated autocomplete
-            if not tkeywords_form.is_valid():
-                return HttpResponse(json.dumps({'message': "Invalid thesaurus keywords"}, status_code=400))
+            tkeywords_to_add = []
+            tkeywords_cleaned = tkeywords_form.clean()
+            if tkeywords_cleaned and len(tkeywords_cleaned) > 0:
+                tkeywords_ids = []
+                for i, val in enumerate(tkeywords_cleaned):
+                    try:
+                        cleaned_data = [value for key, value in tkeywords_cleaned[i].items(
+                        ) if 'tkeywords' in key.lower() and 'autocomplete' not in key.lower()]
+                        tkeywords_ids.extend(map(int, cleaned_data[0]))
+                    except BaseException:
+                        pass
 
-            tkeywords_data = tkeywords_form.cleaned_data['tkeywords']
-
-            thesaurus_setting = getattr(settings, 'THESAURUS', None)
-            if thesaurus_setting:
-                tkeywords_data = tkeywords_data.filter(
-                    thesaurus__identifier=thesaurus_setting['name']
-                )
-                map_obj.tkeywords = tkeywords_data
-        except Exception:
+                if hasattr(settings, 'THESAURUS') and settings.THESAURUS:
+                    el = settings.THESAURUS
+                    thesaurus_name = el['name']
+                    try:
+                        t = Thesaurus.objects.get(
+                            identifier=thesaurus_name)
+                        for tk in t.thesaurus.all():
+                            tkl = tk.keyword.filter(pk__in=tkeywords_ids)
+                            if len(tkl) > 0:
+                                tkeywords_to_add.append(tkl[0].keyword_id)
+                        map_obj.tkeywords.clear()
+                        map_obj.tkeywords.add(*tkeywords_to_add)
+                    except BaseException:
+                        tb = traceback.format_exc()
+                        logger.error(tb)
+        except BaseException:
             tb = traceback.format_exc()
             logger.error(tb)
 
@@ -324,16 +339,24 @@ def map_metadata(
     if poc is None:
         poc_form = ProfileForm(request.POST, prefix="poc")
     else:
-        map_form.fields['poc'].initial = poc.id
-        poc_form = ProfileForm(prefix="poc")
-        poc_form.hidden = True
+        if poc is None:
+            poc_form = ProfileForm(instance=poc, prefix="poc")
+        else:
+            map_form.fields['poc'].initial = poc.id
+            poc_form = ProfileForm(prefix="poc")
+            poc_form.hidden = True
 
     if metadata_author is None:
         author_form = ProfileForm(request.POST, prefix="author")
     else:
-        map_form.fields['metadata_author'].initial = metadata_author.id
-        author_form = ProfileForm(prefix="author")
-        author_form.hidden = True
+        if metadata_author is None:
+            author_form = ProfileForm(
+                instance=metadata_author,
+                prefix="author")
+        else:
+            map_form.fields['metadata_author'].initial = metadata_author.id
+            author_form = ProfileForm(prefix="author")
+            author_form.hidden = True
 
     config = map_obj.viewer_json(request)
     layers = MapLayer.objects.filter(map=map_obj.id)
@@ -347,7 +370,7 @@ def map_metadata(
                 request.user.group_list_all(),
                 GroupProfile.objects.exclude(
                     access="private").exclude(access="public-invite"))
-        except Exception:
+        except BaseException:
             all_metadata_author_groups = GroupProfile.objects.exclude(
                 access="private").exclude(access="public-invite")
         [metadata_author_groups.append(item) for item in all_metadata_author_groups
@@ -363,7 +386,7 @@ def map_metadata(
                 map_obj.get_self_resource())
             try:
                 is_manager = request.user.groupmember_set.all().filter(role='manager').exists()
-            except Exception:
+            except BaseException:
                 is_manager = False
             if not is_manager or not can_change_metadata:
                 map_form.fields['is_approved'].widget.attrs.update(
@@ -415,7 +438,7 @@ def map_remove(request, mapid, template='maps/map_remove.html'):
             try:
                 from geonode.contrib.slack.utils import build_slack_message_map
                 slack_message = build_slack_message_map("map_delete", map_obj)
-            except Exception:
+            except BaseException:
                 logger.error("Could not build slack message for delete map.")
 
             delete_map.delay(object_id=map_obj.id)
@@ -423,7 +446,7 @@ def map_remove(request, mapid, template='maps/map_remove.html'):
             try:
                 from geonode.contrib.slack.utils import send_slack_messages
                 send_slack_messages(slack_message)
-            except Exception:
+            except BaseException:
                 logger.error("Could not send slack message for delete map.")
         else:
             delete_map.delay(object_id=map_obj.id)
@@ -518,14 +541,14 @@ def map_embed_widget(request, mapid,
         if valid_x:
             try:
                 width_zoom = math.log(360 / abs(maxx - minx), 2)
-            except Exception:
+            except BaseException:
                 pass
 
         height_zoom = 15
         if valid_y:
             try:
                 height_zoom = math.log(360 / abs(maxy - miny), 2)
-            except Exception:
+            except BaseException:
                 pass
 
         map_obj.center_x = center[0]
@@ -621,7 +644,7 @@ def map_json(request, mapid, snapshot=None):
             json.dumps(
                 map_obj.viewer_json(request)))
     elif request.method == 'PUT':
-        if not request.user.is_authenticated:
+        if not request.user.is_authenticated():
             return HttpResponse(
                 _PERMISSION_MSG_LOGIN,
                 status=401,
@@ -690,7 +713,7 @@ def map_edit(request, mapid, snapshot=None, template='maps/map_edit.html'):
 
 
 def clean_config(conf):
-    if isinstance(conf, string_types):
+    if isinstance(conf, basestring):
         config = json.loads(conf)
         config_extras = [
             "tools",
@@ -738,7 +761,7 @@ def new_map_json(request):
         else:
             return HttpResponse(config)
     elif request.method == 'POST':
-        if not request.user.is_authenticated:
+        if not request.user.is_authenticated():
             return HttpResponse(
                 'You must be logged in to save new maps',
                 content_type="text/plain",
@@ -796,7 +819,7 @@ def new_map_config(request):
 
         map_obj.abstract = DEFAULT_ABSTRACT
         map_obj.title = DEFAULT_TITLE
-        if request.user.is_authenticated:
+        if request.user.is_authenticated():
             map_obj.owner = request.user
 
         config = map_obj.viewer_json(request)
@@ -861,6 +884,7 @@ def add_layers_to_map_config(
             return [_bbox[0], _bbox[2], _bbox[1], _bbox[3]]
 
         def sld_definition(style):
+            from urllib import quote
             _sld = {
                 "title": style.sld_title or style.name,
                 "legend": {
@@ -1014,9 +1038,9 @@ def add_layers_to_map_config(
                                 source_params=json.dumps(source_params)
                                 )
         else:
-            ogc_server_url = urlsplit(
+            ogc_server_url = urlparse.urlsplit(
                 ogc_server_settings.PUBLIC_LOCATION).netloc
-            layer_url = urlsplit(layer.ows_url).netloc
+            layer_url = urlparse.urlsplit(layer.ows_url).netloc
 
             access_token = request.session['access_token'] if request and 'access_token' in request.session else None
             if access_token and ogc_server_url == layer_url and 'access_token' not in layer.ows_url:
@@ -1212,7 +1236,7 @@ def map_wms(request, mapid):
             return HttpResponse(
                 json.dumps(response),
                 content_type="application/json")
-        except Exception:
+        except BaseException:
             return HttpResponseServerError()
 
     if request.method == 'GET':
@@ -1244,7 +1268,7 @@ def snapshot_config(snapshot, map_obj, request):
 
     # Match up the layer with it's source
     def snapsource_lookup(source, sources):
-        for k, v in sources.items():
+        for k, v in sources.iteritems():
             if v.get("id") == source.get("id"):
                 return k
         return None
@@ -1336,7 +1360,7 @@ def snapshot_create(request):
     """
     conf = request.body
 
-    if isinstance(conf, string_types):
+    if isinstance(conf, basestring):
         config = json.loads(conf)
         snapshot = MapSnapshot.objects.create(
             config=clean_config(conf),
@@ -1398,7 +1422,7 @@ def map_thumbnail(request, mapid):
         try:
             image = _prepare_thumbnail_body_from_opts(
                 request.body, request=request)
-        except Exception:
+        except BaseException:
             image = _render_thumbnail(request.body)
 
         if not image:
@@ -1411,7 +1435,7 @@ def map_thumbnail(request, mapid):
         map_obj.save_thumbnail(filename, image)
 
         return HttpResponse(_('Thumbnail saved'))
-    except Exception:
+    except BaseException:
         return HttpResponse(
             content=_('error saving thumbnail'),
             status=500,
@@ -1442,23 +1466,3 @@ def map_metadata_detail(
 @login_required
 def map_batch_metadata(request, ids):
     return batch_modify(request, ids, 'Map')
-
-
-class MapAutocomplete(autocomplete.Select2QuerySetView):
-
-    # Overriding both result label methods to ensure autocomplete labels display without ' by user' suffix
-    def get_selected_result_label(self, result):
-        """Return the label of a selected result."""
-        return self.get_result_label(result)
-
-    def get_result_label(self, result):
-        """Return the label of a selected result."""
-        return six.text_type(result.title)
-
-    def get_queryset(self):
-        qs = Map.objects.all()
-
-        if self.q:
-            qs = qs.filter(title__icontains=self.q).order_by('title')[:100]
-
-        return qs

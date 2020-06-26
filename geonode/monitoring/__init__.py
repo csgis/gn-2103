@@ -22,7 +22,7 @@ import logging
 from django.utils.translation import ugettext_noop as _
 from django.conf import settings
 from functools import wraps
-from six import string_types
+import types
 
 from geonode.notifications_helper import NotificationsAppConfigBase, has_notifications
 from django.db.models.signals import post_migrate
@@ -89,7 +89,7 @@ def register_event(request, event_type, resource):
     if not settings.MONITORING_ENABLED:
         return
     from geonode.base.models import ResourceBase
-    if isinstance(resource, string_types):
+    if isinstance(resource, types.StringTypes):
         resource_type = 'url'
         resource_name = request.path
         resource_id = None
@@ -99,8 +99,7 @@ def register_event(request, event_type, resource):
         resource_id = resource.id
     else:
         raise ValueError("Invalid resource: {}".format(resource))
-    if request and hasattr(request, 'register_event'):
-        request.register_event(event_type, resource_type, resource_name, resource_id)
+    request.register_event(event_type, resource_type, resource_name, resource_id)
 
 
 def register_proxy_event(request):

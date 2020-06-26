@@ -62,15 +62,15 @@ class Command(BaseCommand):
             all_layers = all_layers.filter(owner__username=username)
 
         for index, layer in enumerate(all_layers):
-            print("[%s / %s] Checking 'alternate' of Layer [%s] ..." % ((index + 1), len(all_layers), layer.name))
+            print "[%s / %s] Checking 'alternate' of Layer [%s] ..." % ((index + 1), len(all_layers), layer.name)
             try:
                 if not layer.alternate:
                     layer.alternate = layer.typename
                     layer.save()
-            except Exception as e:
+            except BaseException as e:
                 # import traceback
                 # traceback.print_exc()
                 if ignore_errors:
-                    print("[ERROR] Layer [%s] couldn't be updated" % (layer.name))
+                    print "[ERROR] Layer [%s] couldn't be updated" % (layer.name)
                 else:
                     raise e

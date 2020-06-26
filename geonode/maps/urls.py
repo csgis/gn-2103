@@ -24,7 +24,6 @@ from django.views.generic import TemplateView
 from geonode import geoserver, qgis_server
 from geonode.utils import check_ogc_backend
 from geonode.monitoring import register_url_event
-
 from . import views
 
 js_info_dict = {
@@ -53,6 +52,8 @@ elif check_ogc_backend(qgis_server.BACKEND_PACKAGE):
     from geonode.maps.qgis_server_views import map_download_qlr, \
         map_download_leaflet, set_thumbnail_map
 
+    map_download_qlr = map_download_qlr
+    map_download_leaflet = map_download_leaflet
     map_edit = MapEditView.as_view()
     map_json = MapUpdateView.as_view()
     map_thumbnail = set_thumbnail_map
@@ -98,8 +99,6 @@ urlpatterns = [
     url(r'^(?P<layername>[^/]*)/attributes',
         views.maplayer_attributes,
         name='maplayer_attributes'),
-    url(r'^autocomplete/$',
-        views.MapAutocomplete.as_view(), name='autocomplete_map'),
 ]
 
 if check_ogc_backend(qgis_server.BACKEND_PACKAGE):

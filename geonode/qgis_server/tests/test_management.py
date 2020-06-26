@@ -21,7 +21,7 @@
 from geonode.tests.base import GeoNodeBaseTestSupport
 
 import os
-from urllib.parse import unquote
+import urlparse
 from imghdr import what
 
 import gisdata
@@ -73,7 +73,7 @@ class TestManagementCommands(GeoNodeBaseTestSupport):
         tiles_link = layer.link_set.get(name='Tiles')
         """:type: geonode.base.models.Link"""
         self.assertEqual(tiles_link.extension, 'tiles')
-        tiles_url = unquote(tiles_link.url)
+        tiles_url = urlparse.unquote(tiles_link.url)
         tiles = {
             'z': 7,
             'x': 34,
@@ -118,7 +118,7 @@ class TestManagementCommands(GeoNodeBaseTestSupport):
             filepath = f.file.path
             __, extension = os.path.splitext(filepath)
             old_mtime = [
-                v for k, v in layer_modified_time.items()
+                v for k, v in layer_modified_time.iteritems()
                 if k.endswith(extension)][0]
             self.assertNotEqual(old_mtime, os.path.getmtime(filepath))
 
@@ -126,10 +126,10 @@ class TestManagementCommands(GeoNodeBaseTestSupport):
         # previous files should not exists
         for f in layer.upload_session.layerfile_set.all():
             filepath = f.file.path
-            if filepath not in layer_modified_time.keys():
+            if filepath not in layer_modified_time.iterkeys():
                 __, extension = os.path.splitext(filepath)
                 old_filepath = [
-                    k for k in layer_modified_time.keys()
+                    k for k in layer_modified_time.iterkeys()
                     if k.endswith(extension)][0]
                 self.assertFalse(os.path.exists(old_filepath))
 

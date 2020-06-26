@@ -22,20 +22,19 @@ import math
 import os
 import re
 import shutil
+import urllib
 import json
-from urllib.parse import unquote, urljoin
+from urlparse import urljoin
 
 import requests
 from django.conf import settings
-from django.contrib.contenttypes.models import ContentType
 from django.contrib.gis.gdal import CoordTransform, SpatialReference
 from django.contrib.gis.geos import GEOSGeometry, Point
 from django.core.exceptions import ImproperlyConfigured
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from defusedxml import lxml as dlxml
 from requests import Request
 
-from geonode.compat import ensure_string
 from geonode import qgis_server, geoserver
 from geonode.utils import check_ogc_backend
 from geonode.geoserver.helpers import OGC_Servers_Handler
@@ -189,7 +188,7 @@ def tile_url_format(layer_name, style=None):
         kwargs=url_kwargs)
     # unquote url
     # so that {z}/{x}/{y} is not quoted
-    url = unquote(url)
+    url = urllib.unquote(url)
     url = urljoin(settings.SITEURL, url)
     return url
 
@@ -792,7 +791,7 @@ def style_list(layer, internal=True, generating_qgis_capabilities=False):
     try:
         response = requests.get(url)
 
-        root_xml = dlxml.fromstring(ensure_string(response.content))
+        root_xml = dlxml.fromstring(response.content)
         styles_xml = root_xml.xpath(
             'wms:Capability/wms:Layer/wms:Layer/wms:Style',
             namespaces={
@@ -857,7 +856,7 @@ def style_list(layer, internal=True, generating_qgis_capabilities=False):
         try:
             if not qgis_layer.default_style:
                 set_default_style = True
-        except Exception:
+        except BaseException:
             set_default_style = True
 
         if set_default_style and styles_obj:
@@ -865,7 +864,7 @@ def style_list(layer, internal=True, generating_qgis_capabilities=False):
             qgis_layer.save()
 
         return styles_obj
-    except Exception:
+    except BaseException:
         msg = 'No QGIS Style for existing layer {0}'.format(layer.name)
         logger.debug(msg)
         raise
@@ -934,46 +933,32 @@ def delete_orphaned_qgis_server_layers():
     """Delete orphaned QGIS Server files."""
     layer_path = settings.QGIS_SERVER_CONFIG['layer_directory']
     if not os.path.exists(layer_path):
-        print("{path} not exists".format(path=layer_path))
+        print '{path} not exists'.format(path=layer_path)
         return
     for filename in os.listdir(layer_path):
         basename, __ = os.path.splitext(filename)
         fn = os.path.join(layer_path, filename)
         if QGISServerLayer.objects.filter(
                 base_layer_path__icontains=basename).count() == 0:
-            print("Removing orphan layer file {}".format(fn))
+            print 'Removing orphan layer file %s' % fn
             try:
                 os.remove(fn)
             except OSError:
-                print("Could not delete file {}".format(fn))
+                print 'Could not delete file %s' % fn
 
 
 def delete_orphaned_qgis_server_caches():
     """Delete orphaned QGIS Server tile caches."""
     tiles_path = settings.QGIS_SERVER_CONFIG['tiles_directory']
     if not os.path.exists(tiles_path):
-        print("{path} not exists".format(path=tiles_path))
+        print '{path} not exists'.format(path=tiles_path)
         return
     for basename in os.listdir(tiles_path):
         path = os.path.join(tiles_path, basename)
         if QGISServerLayer.objects.filter(
                 base_layer_path__icontains=basename).count() == 0:
-            print("Removing orphan layer file {}".format(path))
+            print 'Removing orphan layer file %s' % path
             try:
                 shutil.rmtree(path)
             except OSError:
-                print("Could not delete file {}".format(path))
-
-
-def get_model_path(instance):
-    """Get a Django model instance's app label and name.
-
-    :param instance: An instance of a Django model
-    :type instance: django.db.models.Model
-    """
-
-    model_type = ContentType.objects.get_for_model(instance)
-    return "{app_label}.{model_name}".format(
-        app_label=model_type.app_label,
-        model_name=model_type.model
-    )
+                print 'Could not delete file %s' % path

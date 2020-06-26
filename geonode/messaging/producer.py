@@ -18,18 +18,16 @@
 #
 #########################################################################
 
+from __future__ import with_statement
+
 import logging
 import traceback
 
 from decorator import decorator
 from kombu import BrokerConnection
 from kombu.common import maybe_declare
-from .queues import (
-    queue_email_events,
-    queue_geoserver_events,
-    queue_notifications_events,
-    queue_layer_viewers
-)
+from queues import queue_email_events, queue_geoserver_events,\
+    queue_notifications_events, queue_layer_viewers
 
 from . import (url,
                producers,
@@ -71,7 +69,7 @@ def sync_if_local_memory(func, *args, **kwargs):
             worker = Consumer(connection, max_messages)
             try:
                 worker.run(timeout=broker_socket_timeout)
-            except Exception:
+            except BaseException:
                 tb = traceback.format_exc()
                 msg = "Exception while publishing message: {}".format(tb)
                 logger.error(msg)

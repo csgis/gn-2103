@@ -19,19 +19,11 @@
 #########################################################################
 
 from django.contrib import admin
-from django.db.models import Prefetch
 
-from modeltranslation.admin import TabbedTranslationAdmin
-
-from geonode.base.admin import ResourceBaseAdminForm
+from geonode.base.admin import MediaTranslationAdmin, ResourceBaseAdminForm
 from geonode.base.admin import metadata_batch_edit, set_batch_permissions
 from geonode.layers.models import Layer, Attribute, Style
 from geonode.layers.models import LayerFile, UploadSession
-
-from geonode.base.fields import MultiThesauriField
-from geonode.base.models import ThesaurusKeyword, ThesaurusKeywordLabel
-
-from dal import autocomplete
 
 
 class AttributeInline(admin.TabularInline):
@@ -40,24 +32,12 @@ class AttributeInline(admin.TabularInline):
 
 class LayerAdminForm(ResourceBaseAdminForm):
 
-    class Meta(ResourceBaseAdminForm.Meta):
+    class Meta:
         model = Layer
         fields = '__all__'
 
-    tkeywords = MultiThesauriField(
-        queryset=ThesaurusKeyword.objects.prefetch_related(
-            Prefetch('keyword', queryset=ThesaurusKeywordLabel.objects.filter(lang='en'))
-        ),
-        widget=autocomplete.ModelSelect2Multiple(
-            url='thesaurus_autocomplete',
-        ),
-        label=("Keywords from Thesaurus"),
-        required=False,
-        help_text=("List of keywords from Thesaurus",),
-    )
 
-
-class LayerAdmin(TabbedTranslationAdmin):
+class LayerAdmin(MediaTranslationAdmin):
     list_display = (
         'id',
         'alternate',

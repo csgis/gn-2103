@@ -20,10 +20,9 @@
 
 import traceback
 import os
+import helpers
 import tempfile
 import json
-
-from . import helpers
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
@@ -88,7 +87,7 @@ class Command(BaseCommand):
                 from geonode.base.models import ResourceBase
                 try:
                     higher_pk = ResourceBase.objects.all().order_by("-id")[0].pk
-                except Exception:
+                except:
                     higher_pk = 0
 
                 # Restore Fixtures
@@ -97,7 +96,7 @@ class Command(BaseCommand):
                         if app_name == mig_name:
                             fixture_file = os.path.join(target_folder, dump_name+'.json')
 
-                            print("Deserializing "+fixture_file)
+                            print "Deserializing "+fixture_file
                             mangler = helpers.load_class(mangler)
                             site_url = settings.SITEURL.rstrip('/') if settings.SITEURL.startswith('http') else settings.SITEURL
                             obj = helpers.load_fixture(app_name, fixture_file, mangler=mangler,
@@ -111,7 +110,7 @@ class Command(BaseCommand):
                             for obj in objects:
                                 obj.save(using=DEFAULT_DB_ALIAS)
 
-                print("Restore finished. Please find restored files and dumps into: '"+target_folder+"'.")
+                print "Restore finished. Please find restored files and dumps into: '"+target_folder+"'."
 
             except Exception:
                 traceback.print_exc()

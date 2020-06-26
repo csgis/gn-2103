@@ -21,14 +21,14 @@
 import logging
 import os
 import uuid
-from urllib.parse import urlparse
+from urlparse import urlparse
 
 from django.db import models
 from django.db.models import signals
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.contrib.staticfiles import finders
 from django.utils.translation import ugettext_lazy as _
 
@@ -68,10 +68,7 @@ class Document(ResourceBase):
         verbose_name=_('URL'))
 
     def __unicode__(self):
-        return "{0}".format(self.__str__())
-
-    def __str__(self):
-        return "{0}".format(self.title)
+        return self.title
 
     def get_absolute_url(self):
         return reverse('document_detail', args=(self.id,))
@@ -105,10 +102,10 @@ class Document(ResourceBase):
 class DocumentResourceLink(models.Model):
 
     # relation to the document model
-    document = models.ForeignKey(Document, related_name='links', on_delete=models.CASCADE)
+    document = models.ForeignKey(Document, related_name='links')
 
     # relation to the resource model
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    content_type = models.ForeignKey(ContentType)
     object_id = models.PositiveIntegerField()
     resource = GenericForeignKey('content_type', 'object_id')
 
@@ -129,7 +126,7 @@ def get_related_resources(document):
                 link.content_type.get_object_for_this_type(id=link.object_id)
                 for link in document.links.all()
             ]
-        except Exception:
+        except BaseException:
             return []
     else:
         return []

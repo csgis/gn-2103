@@ -77,24 +77,19 @@ class Command(BaseCommand):
         for layer in layers:
             count += 1
             try:
-                print("Checking layer {}/{}: {} owned by {}".format(
-                    count,
-                    layers_count,
-                    layer.alternate,
-                    layer.owner.username
-                ))
+                print 'Checking layer %s/%s: %s owned by %s' % (count,
+                                                                layers_count,
+                                                                layer.alternate,
+                                                                layer.owner.username)
                 if not is_gs_resource_valid(layer):
-                    print("Layer {} is broken!".format(layer.alternate))
+                    print 'Layer %s is broken!' % layer.alternate
                     layer_errors.append(layer)
                     if options['remove']:
-                        print("Removing this layer...")
+                        print 'Removing this layer...'
                         layer.delete()
-            except Exception:
+            except:
                 print("Unexpected error:", sys.exc_info()[0])
 
-        print("\n***** Layers with errors: {} in a total of {} *****".format(
-            len(layer_errors),
-            layers_count
-        ))
+        print '\n***** Layers with errors: %s in a total of %s *****' % (len(layer_errors), layers_count)
         for layer_error in layer_errors:
-            print("{} by {}".format(layer_error.alternate, layer_error.owner.username))
+            print '%s by %s' % (layer_error.alternate, layer_error.owner.username)

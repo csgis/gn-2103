@@ -22,7 +22,7 @@ import logging
 from shutil import copyfile
 
 from django.conf import settings
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.contrib.auth.models import Group
 from django.contrib.auth import get_user_model
 from django.db import models
@@ -47,10 +47,7 @@ class GroupCategory(models.Model):
         verbose_name_plural = _('Group Categories')
 
     def __unicode__(self):
-        return "{0}".format(self.__str__())
-
-    def __str__(self):
-        return "{0}".format(self.name)
+        return 'Category: {}'.format(self.name.encode('utf-8'))
 
     def get_absolute_url(self):
         return reverse('group_category_detail', args=(self.slug,))
@@ -108,10 +105,7 @@ class GroupProfile(models.Model):
         super(GroupProfile, self).save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        try:
-            Group.objects.filter(name=str(self.slug)).delete()
-        except Exception as e:
-            logger.exception(e)
+        Group.objects.filter(name=self.slug).delete()
         super(GroupProfile, self).delete(*args, **kwargs)
 
     @classmethod
@@ -119,17 +113,14 @@ class GroupProfile(models.Model):
         """
         Returns the groups that user is a member of.  If the user is a superuser, all groups are returned.
         """
-        if user.is_authenticated:
+        if user.is_authenticated():
             if user.is_superuser:
                 return cls.objects.all()
             return cls.objects.filter(groupmember__user=user)
         return []
 
     def __unicode__(self):
-        return "{0}".format(self.__str__())
-
-    def __str__(self):
-        return "{0}".format(self.title)
+        return self.title
 
     def keyword_list(self):
         """
@@ -148,15 +139,12 @@ class GroupProfile(models.Model):
             self.group, [
                 'base.view_resourcebase', 'base.change_resourcebase'], any_perm=True)
 
-        _queryset = []
         if resource_type:
-            for item in queryset:
-                try:
-                    if hasattr(item, resource_type):
-                        _queryset.append(item)
-                except Exception as e:
-                    logger.exception(e)
-        queryset = _queryset if _queryset else queryset
+            queryset = [
+                item for item in queryset if hasattr(
+                    item,
+                    resource_type)]
+
         for resource in queryset:
             yield resource
 
@@ -174,24 +162,24 @@ class GroupProfile(models.Model):
                 flat=True)))
 
     def user_is_member(self, user):
-        if not user.is_authenticated:
+        if not user.is_authenticated():
             return False
         elif user.is_superuser:
             return True
         return user.id in self.member_queryset().values_list("user", flat=True)
 
     def user_is_role(self, user, role):
-        if not user.is_authenticated:
+        if not user.is_authenticated():
             return False
         elif user.is_superuser:
             return True
         return self.member_queryset().filter(user=user, role=role).exists()
 
     def can_view(self, user):
-        if user.is_superuser and user.is_authenticated:
+        if user.is_superuser and user.is_authenticated():
             return True
         if self.access == "private":
-            return user.is_authenticated and self.user_is_member(user)
+            return user.is_authenticated() and self.user_is_member(user)
         else:
             return True
 
@@ -212,8 +200,9 @@ class GroupProfile(models.Model):
         else:
             logger.warning("The invited user \"{0}\" is not a member".format(user.username))
 
+    @models.permalink
     def get_absolute_url(self):
-        return reverse('group_detail', args=[self.slug, ])
+        return ('group_detail', (), {'slug': self.slug})
 
     @property
     def class_name(self):
@@ -227,12 +216,12 @@ class GroupProfile(models.Model):
             _upload_path = os.path.join(_base_path, _upload_path)
             if not os.path.exists(_upload_path):
                 copyfile(self.logo.path, _upload_path)
-        except Exception as e:
+        except BaseException as e:
             logger.exception(e)
         _url = None
         try:
             _url = self.logo.url
-        except Exception as e:
+        except BaseException as e:
             logger.exception(e)
         return _url
 
@@ -241,8 +230,8 @@ class GroupMember(models.Model):
     MANAGER = "manager"
     MEMBER = "member"
 
-    group = models.ForeignKey(GroupProfile, on_delete=models.CASCADE)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    group = models.ForeignKey(GroupProfile)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL)
     role = models.CharField(max_length=10, choices=[
         (MANAGER, _("Manager")),
         (MEMBER, _("Member")),

@@ -18,12 +18,10 @@
 #
 #########################################################################
 import logging
-import traceback
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.core.exceptions import ObjectDoesNotExist
 from geonode.groups.models import GroupProfile
 from guardian.shortcuts import assign_perm, get_groups_with_perms
 
@@ -86,37 +84,33 @@ class PermissionLevelMixin(object):
             'users': users,
             'groups': groups}
 
-        try:
-            if hasattr(self, "layer"):
-                info_layer = {
-                    'users': get_users_with_perms(
-                        self.layer),
-                    'groups': get_groups_with_perms(
-                        self.layer,
-                        attach_perms=True)}
+        # TODO very hugly here, but isn't huglier
+        # to set layer permissions to resource base?
+        if hasattr(self, "layer"):
+            info_layer = {
+                'users': get_users_with_perms(
+                    self.layer),
+                'groups': get_groups_with_perms(
+                    self.layer,
+                    attach_perms=True)}
 
-                for user in info_layer['users']:
-                    if user in info['users']:
-                        info['users'][user] = info['users'][user] + info_layer['users'][user]
-                    else:
-                        info['users'][user] = info_layer['users'][user]
-                for group in info_layer['groups']:
-                    if group in info['groups']:
-                        info['groups'][group] = list(dict.fromkeys(info['groups'][group] + info_layer['groups'][group]))
-                    else:
-                        info['groups'][group] = info_layer['groups'][group]
-        except Exception:
-            tb = traceback.format_exc()
-            logger.debug(tb)
+            for user in info_layer['users']:
+                if user in info['users']:
+                    info['users'][user] = info['users'][user] + info_layer['users'][user]
+                else:
+                    info['users'][user] = info_layer['users'][user]
+            for group in info_layer['groups']:
+                if group in info['groups']:
+                    info['groups'][group] = list(dict.fromkeys(info['groups'][group] + info_layer['groups'][group]))
+                else:
+                    info['groups'][group] = info_layer['groups'][group]
+
         return info
 
     def get_self_resource(self):
-        try:
-            if hasattr(self, "resourcebase_ptr_id"):
-                return self.resourcebase_ptr
-        except ObjectDoesNotExist:
-            pass
-        return self
+        return self.resourcebase_ptr if hasattr(
+            self,
+            'resourcebase_ptr_id') else self
 
     def set_default_permissions(self):
         """
@@ -211,37 +205,38 @@ class PermissionLevelMixin(object):
                 sync_geofence_with_guardian(self.layer, perms, user=self.owner)
 
         # All the other users
-        if 'users' in perm_spec and len(perm_spec['users']) > 0:
+        if 'users' in perm_spec:
             for user, perms in perm_spec['users'].items():
-                _user = get_user_model().objects.get(username=user)
+                user = get_user_model().objects.get(username=user)
                 for perm in perms:
                     if self.polymorphic_ctype.name == 'layer' and perm in (
                             'change_layer_data', 'change_layer_style',
                             'add_layer', 'change_layer', 'delete_layer',):
-                        assign_perm(perm, _user, self.layer)
+                        assign_perm(perm, user, self.layer)
                     else:
-                        assign_perm(perm, _user, self.get_self_resource())
+                        assign_perm(perm, user, self.get_self_resource())
                 # Set the GeoFence Rules
-                if user and user == "AnonymousUser":
-                    user = None
+                geofence_user = str(user)
+                if "AnonymousUser" in geofence_user:
+                    geofence_user = None
                 if settings.OGC_SERVER['default'].get("GEOFENCE_SECURITY_ENABLED", False):
                     if self.polymorphic_ctype.name == 'layer':
-                        sync_geofence_with_guardian(self.layer, perms, user=user)
+                        sync_geofence_with_guardian(self.layer, perms, user=geofence_user)
 
         # All the other groups
-        if 'groups' in perm_spec and len(perm_spec['groups']) > 0:
+        if 'groups' in perm_spec:
             for group, perms in perm_spec['groups'].items():
-                _group = Group.objects.get(name=group)
+                group = Group.objects.get(name=group)
                 for perm in perms:
                     if self.polymorphic_ctype.name == 'layer' and perm in (
                             'change_layer_data', 'change_layer_style',
                             'add_layer', 'change_layer', 'delete_layer',):
-                        assign_perm(perm, _group, self.layer)
+                        assign_perm(perm, group, self.layer)
                     else:
-                        assign_perm(perm, _group, self.get_self_resource())
+                        assign_perm(perm, group, self.get_self_resource())
                 # Set the GeoFence Rules
-                if _group and _group.name and _group.name == 'anonymous':
-                    _group = None
+                if group.name == 'anonymous':
+                    group = None
                 if settings.OGC_SERVER['default'].get("GEOFENCE_SECURITY_ENABLED", False):
                     if self.polymorphic_ctype.name == 'layer':
-                        sync_geofence_with_guardian(self.layer, perms, group=_group)
+                        sync_geofence_with_guardian(self.layer, perms, group=group)

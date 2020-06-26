@@ -26,11 +26,9 @@ import base64
 import traceback
 from types import TracebackType
 import decimal
-import pickle
-import six
+import cPickle as pickle
 from django.db.models import Q
 from celery.exceptions import TimeoutError
-from urllib.parse import quote
 
 from django.contrib.gis.geos import GEOSGeometry
 from django.core.exceptions import PermissionDenied
@@ -40,18 +38,18 @@ from itertools import chain
 from six import string_types
 from owslib.wfs import WebFeatureService
 
-from guardian.shortcuts import get_perms, get_objects_for_user
+from guardian.shortcuts import get_perms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import get_user_model
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
 from django.conf import settings
 from django.utils.translation import ugettext as _
 from django.views.decorators.http import require_http_methods
 
-from dal import autocomplete
+from geonode import geoserver, qgis_server
 
 import json
 from django.utils.html import escape
@@ -92,8 +90,6 @@ from geonode.groups.models import GroupProfile
 from geonode.security.views import _perms_info_json
 from geonode.people.forms import ProfileForm, PocForm
 from geonode.documents.models import get_related_documents
-from geonode import geoserver, qgis_server
-from geonode.security.utils import get_visible_resources
 
 from geonode.utils import (
     resolve_object,
@@ -272,15 +268,15 @@ def layer_upload(request, template='upload/layer_upload.html'):
                 out['success'] = False
                 out['errormsgs'] = _('Failed to upload the layer')
                 try:
-                    out['errors'] = ''.join(error)
-                except Exception:
+                    out['errors'] = u''.join(error).encode('utf-8')
+                except BaseException:
                     try:
                         out['errors'] = str(error)
-                    except Exception:
+                    except BaseException:
                         try:
                             tb = traceback.format_exc()
                             out['errors'] = tb
-                        except Exception:
+                        except BaseException:
                             pass
 
                 # Assign the error message to the latest UploadSession from
@@ -293,7 +289,7 @@ def layer_upload(request, template='upload/layer_upload.html'):
                     if not isinstance(error, TracebackType):
                         try:
                             upload_session.error = pickle.dumps(error).decode("utf-8", "replace")
-                        except Exception:
+                        except BaseException:
                             err_msg = 'The error could not be parsed'
                             upload_session.error = err_msg
                             logger.error("TypeError: can't pickle traceback objects")
@@ -301,10 +297,7 @@ def layer_upload(request, template='upload/layer_upload.html'):
                         err_msg = 'The error could not be parsed'
                         upload_session.error = err_msg
                         logger.error("TypeError: can't pickle traceback objects")
-                    try:
-                        upload_session.traceback = traceback.format_exc(tb)
-                    except TypeError:
-                        upload_session.traceback = traceback.format_tb(tb)
+                    upload_session.traceback = traceback.format_exc(tb)
                     upload_session.context = log_snippet(CONTEXT_LOG_FILE)
                     upload_session.save()
                     out['traceback'] = upload_session.traceback
@@ -351,30 +344,28 @@ def layer_upload(request, template='upload/layer_upload.html'):
 
         # null-safe charset
         layer_charset = 'UTF-8'
-        if saved_layer:
-            layer_charset = getattr(saved_layer, 'charset', layer_charset)
-        elif input_charset and 'undefined' not in input_charset:
+        if saved_layer and hasattr(saved_layer, 'charset'):
+            layer_charset = saved_layer.charset
+        elif input_charset:
             layer_charset = input_charset
 
         _keys = ['info', 'errors']
         for _k in _keys:
             if _k in out:
-                if isinstance(out[_k], string_types):
-                    out[_k] = out[_k].encode(layer_charset, 'surrogateescape').decode('utf-8', 'surrogateescape')
+                if isinstance(out[_k], unicode) or isinstance(
+                        out[_k], str):
+                    out[_k] = out[_k].decode(layer_charset).encode("utf-8")
                 elif isinstance(out[_k], dict):
-                    for key, value in out[_k].items():
+                    for key, value in out[_k].iteritems():
                         try:
                             item = out[_k][key]
                             # Ref issue #4241
                             if isinstance(item, ErrorList):
-                                out[_k][key] = item.as_text().encode(
-                                    layer_charset, 'surrogateescape').decode('utf-8', 'surrogateescape')
+                                out[_k][key] = item.as_text().decode(layer_charset).encode("utf-8")
                             else:
-                                out[_k][key] = item.encode(layer_charset, 'surrogateescape').decode(
-                                    'utf-8', 'surrogateescape')
-                            out[_k][key.encode(layer_charset, 'surrogateescape').decode(
-                                'utf-8', 'surrogateescape')] = out[_k].pop(key)
-                        except Exception as e:
+                                out[_k][key] = item.decode(layer_charset).encode("utf-8")
+                            out[_k][key.decode(layer_charset).encode("utf-8")] = out[_k].pop(key)
+                        except BaseException as e:
                             logger.exception(e)
 
         return HttpResponse(
@@ -400,6 +391,7 @@ def layer_detail(request, layername, template='layers/layer_detail.html'):
         return [_bbox[0], _bbox[2], _bbox[1], _bbox[3]]
 
     def sld_definition(style):
+        from urllib import quote
         _sld = {
             "title": style.sld_title or style.name,
             "legend": {
@@ -555,7 +547,7 @@ def layer_detail(request, layername, template='layers/layer_detail.html'):
                 try:
                     if request.GET["filter"]:
                         filter = request.GET["filter"]
-                except Exception:
+                except BaseException:
                     pass
 
                 offset = 10 * (request.page - 1)
@@ -567,7 +559,7 @@ def layer_detail(request, layername, template='layers/layer_detail.html'):
                     filter=filter)
                 all_granules = cat.mosaic_granules(
                     coverages['coverages']['coverage'][0]['name'], store, filter=filter)
-            except Exception:
+            except BaseException:
                 granules = {"features": []}
                 all_granules = {"features": []}
 
@@ -667,7 +659,7 @@ def layer_detail(request, layername, template='layers/layer_detail.html'):
             geom = GEOSGeometry(wkt, srid=int(srid[0]))
             geom.transform(4326)
             context_dict["layer_bbox"] = ','.join([str(c) for c in geom.extent])
-        except Exception:
+        except BaseException:
             pass
     if layer.storeType == 'dataStore':
         links = layer.link_set.download().filter(
@@ -714,11 +706,11 @@ def layer_detail(request, layername, template='layers/layer_detail.html'):
                 context_dict["layer_type"] = "vector_time"
             else:
                 context_dict["layer_type"] = "vector"
-    except Exception:
+    except BaseException:
         logger.error(
             "Possible error with OWSLib. Turning all available properties to string")
     # maps owned by user needed to fill the "add to existing map section" in template
-    if request.user.is_authenticated:
+    if request.user.is_authenticated():
         context_dict["maps"] = Map.objects.filter(owner=request.user)
         if getattr(settings, 'FAVORITE_ENABLED', False):
             from geonode.favorite.utils import get_favorite_info
@@ -736,7 +728,7 @@ def load_layer_data(request, template='layers/layer_detail.html'):
     data_dict = json.loads(request.POST.get('json_data'))
     layername = data_dict['layer_name']
     filtered_attributes = ''
-    if not isinstance(data_dict['filtered_attributes'], string_types):
+    if not isinstance(data_dict['filtered_attributes'], basestring):
         filtered_attributes = [x for x in data_dict['filtered_attributes'] if '/load_layer_data' not in x]
     name = layername if ':' not in layername else layername.split(':')[1]
     location = "{location}{service}".format(** {
@@ -770,7 +762,7 @@ def load_layer_data(request, template='layers/layer_detail.html'):
         # in the dictionary (if doesn't exist) together with the value
         from collections import Iterable
         for i in range(len(decoded_features)):
-            for key, value in decoded_features[i]['properties'].items():
+            for key, value in decoded_features[i]['properties'].iteritems():
                 if value != '' and isinstance(value, (string_types, int, float)) and (
                         (isinstance(value, Iterable) and '/load_layer_data' not in value) or value):
                     properties[key].append(value)
@@ -780,7 +772,7 @@ def load_layer_data(request, template='layers/layer_detail.html'):
             properties[key].sort()
 
         context_dict["feature_properties"] = properties
-    except Exception:
+    except BaseException:
         import traceback
         traceback.print_exc()
         logger.error("Possible error with OWSLib.")
@@ -932,7 +924,9 @@ def layer_metadata(
         category_form = CategoryForm(request.POST, prefix="category_choice_field", initial=int(
             request.POST["category_choice_field"]) if "category_choice_field" in request.POST and
             request.POST["category_choice_field"] else None)
-        tkeywords_form = TKeywordForm(request.POST)
+        tkeywords_form = TKeywordForm(
+            prefix="tkeywords",
+            initial={'tkeywords': request.POST.getlist('tkeywords-tkeywords')})
     else:
         layer_form = LayerForm(instance=layer, prefix="resource")
         attribute_form = layer_attribute_set(
@@ -962,11 +956,13 @@ def layer_metadata(
                             tkeywords_list += "," + \
                                 tkl_ids if len(
                                     tkeywords_list) > 0 else tkl_ids
-                except Exception:
+                except BaseException:
                     tb = traceback.format_exc()
                     logger.error(tb)
 
-        tkeywords_form = TKeywordForm(instance=layer)
+        tkeywords_form = TKeywordForm(
+            prefix="tkeywords",
+            initial={'tkeywords': tkeywords_list})
 
     if request.method == "POST" and layer_form.is_valid() and attribute_form.is_valid(
     ) and category_form.is_valid():
@@ -1057,18 +1053,35 @@ def layer_metadata(
         message = layer.alternate
 
         try:
-            if not tkeywords_form.is_valid():
-                return HttpResponse(json.dumps({'message': "Invalid thesaurus keywords"}, status_code=400))
+            # Keywords from THESAURUS management
+            tkeywords_to_add = []
+            tkeywords_cleaned = tkeywords_form.clean()
+            if tkeywords_cleaned and len(tkeywords_cleaned) > 0:
+                tkeywords_ids = []
+                for i, val in enumerate(tkeywords_cleaned):
+                    try:
+                        cleaned_data = [value for key, value in tkeywords_cleaned[i].items(
+                        ) if 'tkeywords' in key.lower() and 'autocomplete' not in key.lower()]
+                        tkeywords_ids.extend(map(int, cleaned_data[0]))
+                    except BaseException:
+                        pass
 
-            tkeywords_data = tkeywords_form.cleaned_data['tkeywords']
-
-            thesaurus_setting = getattr(settings, 'THESAURUS', None)
-            if thesaurus_setting:
-                tkeywords_data = tkeywords_data.filter(
-                    thesaurus__identifier=thesaurus_setting['name']
-                )
-                layer.tkeywords = tkeywords_data
-        except Exception:
+                if hasattr(settings, 'THESAURUS') and settings.THESAURUS:
+                    el = settings.THESAURUS
+                    thesaurus_name = el['name']
+                    try:
+                        t = Thesaurus.objects.get(
+                            identifier=thesaurus_name)
+                        for tk in t.thesaurus.all():
+                            tkl = tk.keyword.filter(pk__in=tkeywords_ids)
+                            if len(tkl) > 0:
+                                tkeywords_to_add.append(tkl[0].keyword_id)
+                        layer.tkeywords.clear()
+                        layer.tkeywords.add(*tkeywords_to_add)
+                    except BaseException:
+                        tb = traceback.format_exc()
+                        logger.error(tb)
+        except BaseException:
             tb = traceback.format_exc()
             logger.error(tb)
 
@@ -1084,7 +1097,7 @@ def layer_metadata(
                 layer.get_self_resource())
             try:
                 is_manager = request.user.groupmember_set.all().filter(role='manager').exists()
-            except Exception:
+            except BaseException:
                 is_manager = False
             if not is_manager or not can_change_metadata:
                 layer_form.fields['is_approved'].widget.attrs.update(
@@ -1118,7 +1131,7 @@ def layer_metadata(
                 request.user.group_list_all().distinct(),
                 GroupProfile.objects.exclude(
                     access="private").exclude(access="public-invite"))
-        except Exception:
+        except BaseException:
             all_metadata_author_groups = GroupProfile.objects.exclude(
                 access="private").exclude(access="public-invite")
         [metadata_author_groups.append(item) for item in all_metadata_author_groups
@@ -1246,7 +1259,7 @@ def layer_replace(request, layername, template='layers/layer_replace.html'):
                     out['url'] = reverse(
                         'layer_detail', args=[
                             saved_layer.service_typename])
-            except Exception as e:
+            except BaseException as e:
                 logger.exception(e)
                 out['success'] = False
                 out['errors'] = str(e)
@@ -1374,8 +1387,7 @@ def layer_thumbnail(request, layername):
     try:
         try:
             preview = json.loads(request.body).get('preview', None)
-        except Exception as e:
-            logger.debug(e)
+        except BaseException:
             preview = None
 
         if preview and preview == 'react':
@@ -1387,8 +1399,7 @@ def layer_thumbnail(request, layername):
             try:
                 image = _prepare_thumbnail_body_from_opts(
                     request.body, request=request)
-            except Exception as e:
-                logger.debug(e)
+            except BaseException:
                 image = _render_thumbnail(request.body)
 
         is_image = False
@@ -1409,9 +1420,9 @@ def layer_thumbnail(request, layername):
         layer_obj.save_thumbnail(filename, image)
 
         return HttpResponse('Thumbnail saved')
-    except Exception as e:
+    except BaseException:
         return HttpResponse(
-            content='error saving thumbnail: %s' % str(e),
+            content='error saving thumbnail',
             status=500,
             content_type='text/plain'
         )
@@ -1602,32 +1613,3 @@ def layer_view_counter(layer_id, viewer):
     _l = Layer.objects.get(id=layer_id)
     _u = get_user_model().objects.get(username=viewer)
     _l.view_count_up(_u, do_local=True)
-
-
-class LayerAutocomplete(autocomplete.Select2QuerySetView):
-
-    # Overriding both result label methods to ensure autocomplete labels display without 'geonode:' prefix
-    def get_selected_result_label(self, result):
-        """Return the label of a selected result."""
-        return self.get_result_label(result)
-
-    def get_result_label(self, result):
-        """Return the label of a selected result."""
-        return six.text_type(result.title)
-
-    def get_queryset(self):
-        request = self.request
-        permitted = get_objects_for_user(
-            request.user,
-            'base.view_resourcebase')
-        qs = Layer.objects.all().filter(id__in=permitted)
-
-        if self.q:
-            qs = qs.filter(title__icontains=self.q)
-
-        return get_visible_resources(
-            qs,
-            request.user if request else None,
-            admin_approval_required=settings.ADMIN_MODERATE_UPLOADS,
-            unpublished_not_visible=settings.RESOURCE_PUBLISHING,
-            private_groups_not_visibile=settings.GROUP_PRIVATE_RESOURCES)

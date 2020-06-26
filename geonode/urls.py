@@ -27,7 +27,7 @@ from geonode.sitemap import LayerSitemap, MapSitemap
 from django.views.generic import TemplateView
 from django.contrib import admin
 from django.conf.urls.i18n import i18n_patterns
-from django.views.i18n import JavaScriptCatalog
+from django.views.i18n import javascript_catalog
 from django.contrib.sitemaps.views import sitemap
 
 import geonode.proxy.urls
@@ -42,12 +42,16 @@ from geonode import geoserver, qgis_server  # noqa
 from geonode.utils import check_ogc_backend
 from geonode.monitoring import register_url_event
 
+from autocomplete_light.registry import autodiscover
+
+# Setup Django Admin
+autodiscover()
 
 admin.autodiscover()
 
 js_info_dict = {
     'domain': 'djangojs',
-    'packages': 'geonode'
+    'packages': ('geonode',)
 }
 
 sitemaps = {
@@ -76,6 +80,8 @@ urlpatterns = [
         name='privacy-cookies'),
 
     # Meta
+    url(r'^jsi18n/$', javascript_catalog,
+        js_info_dict, name='javascript-catalog'),
     url(r'^sitemap\.xml$', sitemap, {'sitemaps': sitemaps},
         name='sitemap'),
     url(r'^robots\.txt$', TemplateView.as_view(
@@ -111,7 +117,8 @@ urlpatterns += [
 
     # Search views
     url(r'^search/$',
-        TemplateView.as_view(template_name='search/search.html'),
+        TemplateView.as_view(
+            template_name='search/search.html'),
         name='search'),
 
     # Social views
@@ -121,7 +128,7 @@ urlpatterns += [
     url(r'^people/', include('geonode.people.urls')),
     url(r'^avatar/', include('avatar.urls')),
     url(r'^comments/', include('dialogos.urls')),
-    url(r'^ratings/', include('pinax.ratings.urls', namespace='pinax_ratings')),
+    url(r'^ratings/', include('agon_ratings.urls')),
     url(r'^activity/', include('actstream.urls')),
     url(r'^announcements/', include('announcements.urls')),
     url(r'^messages/', include('user_messages.urls')),
@@ -140,10 +147,12 @@ urlpatterns += [
         geonode.views.moderator_contacted,
         name='moderator_contacted'),
 
+    # url(r'^i18n/', include('django.conf.urls.i18n')),
+    url(r'^autocomplete/', include('autocomplete_light.urls')),
+    # url(r'^admin/', include(admin.site.urls)),
     url(r'^groups/', include('geonode.groups.urls')),
     url(r'^documents/', include('geonode.documents.urls')),
     url(r'^services/', include('geonode.services.urls')),
-    url(r'^base/', include('geonode.base.urls')),
 
     # OAuth Provider
     url(r'^o/',
@@ -166,13 +175,11 @@ urlpatterns += [
 ]
 
 urlpatterns += i18n_patterns(
-    url(r'^admin/', admin.site.urls, name="admin"),
+    url("^admin/", include(admin.site.urls)),
 )
 
-# Internationalization Javascript
 urlpatterns += [
-    url(r'^i18n/', include(django.conf.urls.i18n), name="i18n"),
-    url(r'^jsi18n/$', JavaScriptCatalog.as_view(), js_info_dict, name='javascript-catalog')
+    url(r'^i18n/', include(django.conf.urls.i18n))
 ]
 
 urlpatterns += [  # '',
@@ -213,8 +220,9 @@ if check_ogc_backend(qgis_server.BACKEND_PACKAGE):
     # QGIS Server's urls
     urlpatterns += [  # '',
         url(r'^qgis-server/',
-            include(('geonode.qgis_server.urls', 'geonode.qgis_server'),
-                    namespace='qgis_server')),
+            include(
+                'geonode.qgis_server.urls',
+                namespace='qgis_server')),
     ]
 
 if settings.NOTIFICATIONS_MODULE in settings.INSTALLED_APPS:
@@ -247,5 +255,5 @@ urlpatterns += [  # '',
 
 if settings.MONITORING_ENABLED:
     urlpatterns += [url(r'^monitoring/',
-                        include(('geonode.monitoring.urls', 'geonode.monitoring'),
+                        include('geonode.monitoring.urls',
                                 namespace='monitoring'))]

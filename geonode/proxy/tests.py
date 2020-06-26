@@ -26,12 +26,9 @@ Replace these with more appropriate tests for your application.
 """
 import json
 
-try:
-    from unittest.mock import MagicMock
-except ImportError:
-    from mock import MagicMock
+from mock import MagicMock
 
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.contrib.auth import get_user_model
 from django.test.utils import override_settings
 
@@ -120,6 +117,7 @@ class ProxyTest(GeoNodeBaseTestSupport):
         url = "http://example.org/test/test/../../index.html"
 
         self.client.get('%s?url=%s' % (self.proxy_url, url))
+        assert request_mock.assert_called_once
         assert request_mock.call_args[0][0] == 'http://example.org/index.html'
 
 
@@ -136,11 +134,8 @@ class DownloadResourceTestCase(GeoNodeBaseTestSupport):
         # ... all should be good
         response = self.client.get(reverse('download', args=(layer.id,)))
         # Espected 404 since there are no files available for this layer
-        self.assertEqual(response.status_code, 404)
-        content = response.content
-        if isinstance(content, bytes):
-            content = content.decode('UTF-8')
-        data = content
+        self.failUnlessEqual(response.status_code, 404)
+        data = response.content
         self.assertTrue(
             "No files have been found for this resource. Please, contact a system administrator." in data)
 
@@ -162,8 +157,5 @@ class OWSApiTestCase(GeoNodeBaseTestSupport):
         self.assertEqual(q.count(), 3)
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 200)
-        content = resp.content
-        if isinstance(content, bytes):
-            content = content.decode('UTF-8')
-        data = json.loads(content)
+        data = json.loads(resp.content)
         self.assertTrue(len(data['data']), q.count())

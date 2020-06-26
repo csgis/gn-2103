@@ -26,7 +26,7 @@ from django.conf import settings
 from django.db import models
 from django.db.models import signals
 
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.contrib.sites.models import Site
 from django.utils.translation import ugettext_lazy as _
 from django.contrib.auth.models import AbstractUser, UserManager
@@ -140,13 +140,9 @@ class Profile(AbstractUser):
     def get_absolute_url(self):
         return reverse('profile_detail', args=[self.username, ])
 
-    def __str__(self):
-        return "{0}".format(self.username)
-
     def __unicode__(self):
-        return "{0}".format(self.__str__())
+        return u"%s" % (self.username)
 
-    @staticmethod
     def class_name(value):
         return value.__class__.__name__
 
@@ -217,7 +213,7 @@ class Profile(AbstractUser):
                     email_template,
                     self.email,
                     ctx)
-            except Exception:
+            except BaseException:
                 import traceback
                 traceback.print_exc()
 

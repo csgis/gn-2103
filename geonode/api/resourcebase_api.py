@@ -20,7 +20,7 @@
 import json
 import re
 
-from django.urls import resolve
+from django.core.urlresolvers import resolve
 from django.db.models import Q
 from django.http import HttpResponse
 from django.conf import settings
@@ -157,7 +157,8 @@ class CommonModelApi(ModelResource):
             filters = {}
         orm_filters = super(CommonModelApi, self).build_filters(
             filters=filters, ignore_bad_filters=ignore_bad_filters, **kwargs)
-        if 'type__in' in filters and filters['type__in'] in FILTER_TYPES.keys():
+        if 'type__in' in filters and filters[
+                'type__in'] in FILTER_TYPES.keys():
             orm_filters.update({'type': filters.getlist('type__in')})
         if 'extent' in filters:
             orm_filters.update({'extent': filters['extent']})
@@ -199,11 +200,10 @@ class CommonModelApi(ModelResource):
                             filtered = semi_filtered.filter(
                                 Layer___storeType=LAYER_SUBTYPES[super_type])
                 else:
-                    _type_filter = FILTER_TYPES[the_type].__name__.lower()
                     if filtered:
-                        filtered = filtered | semi_filtered.filter(polymorphic_ctype__model=_type_filter)
+                        filtered = filtered | semi_filtered.filter(polymorphic_ctype__model=FILTER_TYPES[the_type])
                     else:
-                        filtered = semi_filtered.filter(polymorphic_ctype__model=_type_filter)
+                        filtered = semi_filtered.filter(polymorphic_ctype__model=FILTER_TYPES[the_type])
         else:
             filtered = semi_filtered
 
@@ -272,7 +272,7 @@ class CommonModelApi(ModelResource):
         returns the modified query
         """
         bbox = bbox.split(',')  # TODO: Why is this different when done through haystack?
-        bbox = list(map(str, bbox))  # 2.6 compat - float to decimal conversion
+        bbox = map(str, bbox)  # 2.6 compat - float to decimal conversion
         intersects = ~(Q(bbox_x0__gt=bbox[2]) | Q(bbox_x1__lt=bbox[0]) |
                        Q(bbox_y0__gt=bbox[3]) | Q(bbox_y1__lt=bbox[1]))
 
@@ -535,15 +535,17 @@ class CommonModelApi(ModelResource):
                 "total_count": total_count,
                 "facets": facets,
             },
-            "objects": [self.get_haystack_api_fields(x) for x in objects],
+            "objects": map(lambda x: self.get_haystack_api_fields(x), objects),
         }
 
         self.log_throttled_access(request)
         return self.create_response(request, object_list)
 
     def get_haystack_api_fields(self, haystack_object):
-        return {k: v for k, v in haystack_object.get_stored_fields().items()
-                if not re.search('_exact$|_sortable$', k)}
+        object_fields = dict(
+            (k, v) for k, v in haystack_object.get_stored_fields().items() if not re.search(
+                '_exact$|_sortable$', k))
+        return object_fields
 
     def get_list(self, request, **kwargs):
         """
@@ -632,7 +634,7 @@ class CommonModelApi(ModelResource):
                 filtered_objects_ids = [
                     item.id for item in data['objects'] if request.user.has_perm(
                         'view_resourcebase', item.get_self_resource())]
-        except Exception:
+        except BaseException:
             pass
 
         if isinstance(
@@ -834,13 +836,13 @@ class LayerResource(CommonModelApi):
             # Default style
             try:
                 obj.qgis_default_style = obj.qgis_layer.default_style
-            except Exception:
+            except BaseException:
                 obj.qgis_default_style = None
 
             # Styles
             try:
                 obj.qgis_styles = obj.qgis_layer.styles
-            except Exception:
+            except BaseException:
                 obj.qgis_styles = []
         return obj
 
@@ -887,7 +889,7 @@ class LayerResource(CommonModelApi):
 
             layer_id = kwargs['id']
             layer = Layer.objects.get(id=layer_id)
-        except Exception:
+        except BaseException:
             return http.HttpBadRequest(reason=reason)
 
         from geonode.qgis_server.views import default_qml_style

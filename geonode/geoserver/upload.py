@@ -60,8 +60,8 @@ def geoserver_upload(
 
     # Step 2. Check that it is uploading to the same resource type as
     # the existing resource
-    logger.debug('>>> Step 2. Make sure we are not trying to overwrite a '
-                 'existing resource named [%s] with the wrong type', name)
+    logger.info('>>> Step 2. Make sure we are not trying to overwrite a '
+                'existing resource named [%s] with the wrong type', name)
     the_layer_type = geoserver_layer_type(base_file)
 
     # Get a short handle to the gsconfig geoserver catalog
@@ -73,7 +73,7 @@ def geoserver_upload(
     try:
         store = get_store(cat, name, workspace=workspace)
 
-    except geoserver.catalog.FailedRequestError:
+    except geoserver.catalog.FailedRequestError as e:
         # There is no store, ergo the road is clear
         pass
     else:
@@ -96,13 +96,13 @@ def geoserver_upload(
                                'does not match type of existing '
                                'resource type '
                                '%s' % (name, the_layer_type, existing_type))
-                        logger.debug(msg)
+                        logger.info(msg)
                         raise GeoNodeException(msg)
 
     # Step 3. Identify whether it is vector or raster and which extra files
     # are needed.
-    logger.debug('>>> Step 3. Identifying if [%s] is vector or raster and '
-                 'gathering extra files', name)
+    logger.info('>>> Step 3. Identifying if [%s] is vector or raster and '
+                'gathering extra files', name)
     if the_layer_type == FeatureType.resource_type:
         logger.debug('Uploading vector layer: [%s]', base_file)
         if ogc_server_settings.DATASTORE:
@@ -122,7 +122,7 @@ def geoserver_upload(
         raise GeoNodeException(msg)
 
     # Step 4. Create the store in GeoServer
-    logger.debug('>>> Step 4. Starting upload of [%s] to GeoServer...', name)
+    logger.info('>>> Step 4. Starting upload of [%s] to GeoServer...', name)
 
     # Get the helper files if they exist
     files = get_files(base_file)
@@ -156,8 +156,8 @@ def geoserver_upload(
                      'errors.', name)
 
     # Step 5. Create the resource in GeoServer
-    logger.debug('>>> Step 5. Generating the metadata for [%s] after '
-                 'successful import to GeoSever', name)
+    logger.info('>>> Step 5. Generating the metadata for [%s] after '
+                'successful import to GeoSever', name)
 
     # Verify the resource was created
     if not gs_resource:
@@ -177,11 +177,11 @@ def geoserver_upload(
     assert gs_resource.name == name
 
     # Step 6. Make sure our data always has a valid projection
-    logger.debug('>>> Step 6. Making sure [%s] has a valid projection' % name)
+    logger.info('>>> Step 6. Making sure [%s] has a valid projection' % name)
     _native_bbox = None
     try:
         _native_bbox = gs_resource.native_bbox
-    except Exception:
+    except BaseException:
         pass
 
     if _native_bbox and len(_native_bbox) >= 5 and _native_bbox[4:5][0] == 'EPSG:4326':
@@ -202,11 +202,11 @@ def geoserver_upload(
                 cat.save(gs_resource)
                 logger.debug('BBOX coordinates forced to [-180, -90, 180, 90] for layer '
                              '[%s].', name)
-            except Exception as e:
+            except BaseException as e:
                 logger.exception('Error occurred while trying to force BBOX on resource', e)
 
     # Step 7. Create the style and assign it to the created resource
-    logger.debug('>>> Step 7. Creating style for [%s]' % name)
+    logger.info('>>> Step 7. Creating style for [%s]' % name)
     cat.save(gs_resource)
     publishing = cat.get_layer(name) or gs_resource
 
@@ -241,7 +241,7 @@ def geoserver_upload(
         if style is None:
             try:
                 style = cat.get_style(name, workspace=settings.DEFAULT_WORKSPACE) or cat.get_style(name)
-            except Exception:
+            except BaseException:
                 try:
                     style = cat.get_style(name + '_layer', workspace=settings.DEFAULT_WORKSPACE) or \
                         cat.get_style(name + '_layer')
@@ -266,7 +266,7 @@ def geoserver_upload(
 
         if style:
             publishing.default_style = style
-            logger.debug('default style set to %s', name)
+            logger.info('default style set to %s', name)
             try:
                 cat.save(publishing)
             except geoserver.catalog.FailedRequestError as e:
@@ -276,7 +276,7 @@ def geoserver_upload(
                 logger.exception(e)
 
     # Step 8. Create the Django record for the layer
-    logger.debug('>>> Step 8. Creating Django record for [%s]', name)
+    logger.info('>>> Step 8. Creating Django record for [%s]', name)
     alternate = workspace.name + ':' + gs_resource.name
     layer_uuid = str(uuid.uuid1())
 

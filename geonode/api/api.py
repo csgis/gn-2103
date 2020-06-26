@@ -25,7 +25,7 @@ from django.db.models import Q
 from django.conf.urls import url
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.contrib.contenttypes.models import ContentType
 from django.conf import settings
 from django.db.models import Count
@@ -94,10 +94,7 @@ class CountJSONSerializer(Serializer):
                 resources = resources.filter(title__icontains=options['title_filter'])
 
             if options['type_filter']:
-                _type_filter = options['type_filter']
-                if not isinstance(_type_filter, str):
-                    _type_filter = _type_filter.__name__.lower()
-                resources = resources.filter(polymorphic_ctype__model=_type_filter)
+                resources = resources.filter(polymorphic_ctype__model=options['type_filter'])
 
         counts = list(resources.values(options['count_type']).annotate(count=Count(options['count_type'])))
 
@@ -406,7 +403,7 @@ class GroupResource(ModelResource):
             applicable_filters)
 
         filtered = semi_filtered
-        if not user.is_authenticated or user.is_anonymous:
+        if not user.is_authenticated() or user.is_anonymous:
             filtered = semi_filtered.exclude(groupprofile__access='private')
         elif not user.is_superuser:
             groups_member_of = user.group_list_all()
@@ -632,7 +629,7 @@ class QGISStyleResource(ModelResource):
             """:type: geonode.qgis_server.QGISServerLayer"""
             style.layer = qgis_layer.layer
             style.type = 'qml'
-        except Exception:
+        except BaseException:
             pass
         return style
 
@@ -642,7 +639,7 @@ class QGISStyleResource(ModelResource):
             filters, **kwargs)
         # Convert layer__ filters into layer_styles__layer__
         updated_filters = {}
-        for key, value in filters.items():
+        for key, value in filters.iteritems():
             key = key.replace('layer__', 'layer_styles__layer__')
             updated_filters[key] = value
         return updated_filters
@@ -806,7 +803,7 @@ class GeoserverStyleResource(ModelResource):
             filters, **kwargs)
         # Convert layer__ filters into layer_styles__layer__
         updated_filters = {}
-        for key, value in filters.items():
+        for key, value in filters.iteritems():
             key = key.replace('layer__', 'layer_default_style__')
             updated_filters[key] = value
         return updated_filters

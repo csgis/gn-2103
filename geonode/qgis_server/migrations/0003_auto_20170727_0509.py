@@ -18,7 +18,7 @@
 #
 #########################################################################
 
-
+from __future__ import unicode_literals
 
 from django.db import migrations, models
 
@@ -44,8 +44,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='qgisserverlayer',
             name='default_style',
-            field=models.ForeignKey(related_name='layer_default_style', on_delete=models.SET_NULL,
-                                    default=None, to='qgis_server.QGISServerStyle', null=True),
+            field=models.ForeignKey(related_name='layer_default_style', default=None, to='qgis_server.QGISServerStyle', null=True),
         ),
         migrations.AddField(
             model_name='qgisserverlayer',

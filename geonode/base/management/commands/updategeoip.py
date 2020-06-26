@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 #########################################################################
-
+from __future__ import print_function
 
 import os
 import logging
@@ -30,8 +30,17 @@ from django.utils.translation import ugettext_noop as _
 
 logger = logging.getLogger(__name__)
 
-URL = 'https://build.geo-solutions.it/geonode/geoserver/latest/GeoLite2-City.tar.gz'
-OLD_FORMAT = False
+try:
+    from django.contrib.gis.geoip2 import GeoIP2 as GeoIP
+    URL = 'https://build.geo-solutions.it/geonode/geoserver/latest/GeoLite2-City.tar.gz'
+    OLD_FORMAT = False
+except ImportError:
+    try:
+        from django.contrib.gis.geoip import GeoIP
+        URL = 'https://build.geo-solutions.it/geonode/geoserver/latest/GeoLiteCity.dat.gz'
+        OLD_FORMAT = True
+    except:
+        URL = None
 
 
 class Command(BaseCommand):
@@ -76,9 +85,9 @@ class Command(BaseCommand):
             logger.info("ERROR, something went wrong")
         else:
             if OLD_FORMAT:
-                self.handle_old_format(open('output.bin', 'rb'), fname)
+                self.handle_old_format(open('output.bin', 'r'), fname)
             else:
-                self.handle_new_format(open('output.bin', 'rb'), fname)
+                self.handle_new_format(open('output.bin', 'r'), fname)
         try:
             # Cleaning up
             os.remove('output.bin')
@@ -97,14 +106,14 @@ class Command(BaseCommand):
                                 fromfile = zfile.extractfile(m)
                                 logger.info("Writing to %s", fname)
                                 tofile.write(fromfile.read())
-                            except Exception as err:
+                            except Exception, err:
                                 logger.error("Cannot extract %s and write to %s: %s", m, fname, err, exc_info=err)
                                 try:
                                     os.remove(fname)
                                 except OSError:
                                     logger.debug("Could not delete file %s", fname)
                         return
-        except Exception as err:
+        except Exception, err:
             logger.error("Cannot process %s: %s", f, err, exc_info=err)
 
 
@@ -115,11 +124,11 @@ class Command(BaseCommand):
                 with open(fname, 'wb') as tofile:
                     try:
                         tofile.write(zfile.read())
-                    except Exception as err:
+                    except Exception, err:
                         logger.error("Cannot extract %s and write to %s: %s", f, fname, err, exc_info=err)
                         try:
                             os.remove(fname)
                         except OSError:
                             logger.debug('Could not delete file %s' % fname)
-        except Exception as err:
+        except Exception, err:
             logger.error("Cannot process %s: %s", f, err, exc_info=err)

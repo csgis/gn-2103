@@ -18,7 +18,8 @@
 #
 #########################################################################
 
-from io import BytesIO
+import StringIO
+
 from datetime import datetime
 from datetime import timedelta
 from django.core.serializers import serialize
@@ -30,7 +31,6 @@ from geonode.base.models import TopicCategory
 from geonode.maps.models import Map
 from geonode.documents.models import Document
 from geonode.people.models import Profile
-from geonode.compat import ensure_string
 from geonode import geoserver, qgis_server  # noqa
 from itertools import cycle
 from taggit.models import Tag
@@ -43,10 +43,8 @@ import six
 # primarily used as a first step to generate the json data for the fixture using
 # django's dumpdata
 
-imgfile = BytesIO(
-    b'GIF87a\x01\x00\x01\x00\x80\x01\x00\x00\x00\x00ccc,\x00'
-    b'\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
-)
+imgfile = StringIO.StringIO('GIF87a\x01\x00\x01\x00\x80\x01\x00\x00\x00\x00ccc,\x00'
+                            '\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;')
 f = SimpleUploadedFile('test_img_file.gif', imgfile.read(), 'image/gif')
 
 
@@ -162,7 +160,7 @@ def create_models(type=None):
     get_user_model().objects.get(username='AnonymousUser').groups.add(anonymous_group)
 
     obj_ids = []
-    if not type or ensure_string(type) == 'map':
+    if not type or type == 'map':
         for md, user in zip(map_data, cycle(users)):
             title, abstract, kws, (bbox_x0, bbox_x1, bbox_y0, bbox_y1), category = md
             m = Map(title=title,
@@ -185,7 +183,7 @@ def create_models(type=None):
                 m.keywords.add(kw)
                 m.save()
 
-    if not type or ensure_string(type) == 'document':
+    if not type or type == 'document':
         for dd, user in zip(document_data, cycle(users)):
             title, abstract, kws, (bbox_x0, bbox_x1, bbox_y0, bbox_y1), category = dd
             m = Document(title=title,
@@ -204,7 +202,7 @@ def create_models(type=None):
                 m.keywords.add(kw)
                 m.save()
 
-    if not type or ensure_string(type) == 'layer':
+    if not type or type == 'layer':
         for ld, owner, storeType in zip(layer_data, cycle(users), cycle(('coverageStore', 'dataStore'))):
             title, abstract, name, alternate, (bbox_x0, bbox_x1, bbox_y0, bbox_y1), start, kws, category = ld
             end = start + timedelta(days=365)
@@ -235,9 +233,9 @@ def create_models(type=None):
 
 def remove_models(obj_ids, type=None):
     if not type:
-        remove_models(None, type=b'map')
-        remove_models(None, type=b'layer')
-        remove_models(None, type=b'document')
+        remove_models(None, type='map')
+        remove_models(None, type='layer')
+        remove_models(None, type='document')
 
     if type == 'map':
         try:
@@ -245,7 +243,7 @@ def remove_models(obj_ids, type=None):
             for id in m_ids:
                 m = Map.objects.get(pk=id)
                 m.delete()
-        except Exception:
+        except BaseException:
             pass
     elif type == 'layer':
         try:
@@ -253,7 +251,7 @@ def remove_models(obj_ids, type=None):
             for id in l_ids:
                 layer = Layer.objects.get(pk=id)
                 layer.delete()
-        except Exception:
+        except BaseException:
             pass
     elif type == 'document':
         try:
@@ -261,7 +259,7 @@ def remove_models(obj_ids, type=None):
             for id in d_ids:
                 d = Document.objects.get(pk=id)
                 d.delete()
-        except Exception:
+        except BaseException:
             pass
 
 

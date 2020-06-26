@@ -24,7 +24,7 @@ import os
 import dj_database_url
 
 from django.conf import settings
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 
 from geonode import geoserver
 from geonode import GeoNodeException

@@ -28,12 +28,11 @@ import json
 from django.contrib.contenttypes.models import ContentType
 from django.utils.translation import ugettext_lazy as _
 from django.core.exceptions import ObjectDoesNotExist
-from django.urls import reverse
+from django.core.urlresolvers import reverse
 from django.template.defaultfilters import slugify
 from django.core.cache import cache
 
 from geonode.layers.models import Layer
-from geonode.compat import ensure_string
 from geonode.base.models import ResourceBase, resourcebase_post_save
 from geonode.maps.signals import map_changed_signal
 from geonode.security.utils import remove_object_permissions
@@ -48,7 +47,7 @@ from geonode import geoserver, qgis_server  # noqa
 from geonode.utils import check_ogc_backend
 
 from deprecated import deprecated
-from pinax.ratings.models import OverallRating
+from agon_ratings.models import OverallRating
 
 logger = logging.getLogger("geonode.maps.models")
 
@@ -90,12 +89,9 @@ class Map(ResourceBase, GXPMapBase):
         blank=True)
     # Full URL for featured map view, ie http://domain/someview
 
-    def __str__(self):
+    def __unicode__(self):
         return '%s by %s' % (
             self.title, (self.owner.username if self.owner else "<Anonymous>"))
-
-    def __unicode__(self):
-        return "{0}".format(self.__str__())
 
     @property
     def center(self):
@@ -172,46 +168,26 @@ class Map(ResourceBase, GXPMapBase):
         """
 
         template_name = hookset.update_from_viewer(conf, context=context)
-        if not isinstance(context, dict):
-            try:
-                context = json.loads(ensure_string(context))
-            except Exception:
-                pass
+        conf = context['config']
 
-        conf = context.get("config", {})
-        if not isinstance(conf, dict):
-            try:
-                conf = json.loads(ensure_string(conf))
-            except Exception:
-                pass
+        self.title = conf['title'] if 'title' in conf else conf['about']['title']
+        self.abstract = conf['abstract'] if 'abstract' in conf else conf['about']['abstract']
 
-        about = conf.get("about", {})
-        self.title = conf.get("title", about.get("title", ""))
-        self.abstract = conf.get("abstract", about.get("abstract", ""))
-
-        _map = conf.get("map", {})
-        center = _map.get("center", settings.DEFAULT_MAP_CENTER)
-        self.zoom = _map.get("zoom", settings.DEFAULT_MAP_ZOOM)
-
-        if isinstance(center, dict):
-            self.center_x = center.get('x')
-            self.center_y = center.get('y')
-        else:
-            self.center_x, self.center_y = center
-
-        projection = _map.get("projection", None)
-        bbox = _map.get("bbox", None)
-
-        if bbox:
-            self.set_bounds_from_bbox(bbox, projection)
-        else:
+        center = conf['map']['center'] if 'center' in conf['map'] else settings.DEFAULT_MAP_CENTER
+        self.zoom = conf['map']['zoom'] if 'zoom' in conf['map'] else settings.DEFAULT_MAP_ZOOM
+        self.center_x = center['x'] if isinstance(center, dict) else center[0]
+        self.center_y = center['y'] if isinstance(center, dict) else center[1]
+        if 'bbox' not in conf['map']:
             self.set_bounds_from_center_and_zoom(
                 self.center_x,
                 self.center_y,
                 self.zoom)
+        else:
+            # Must be in the form : [x0, x1, y0, y1]
+            self.set_bounds_from_bbox(conf['map']['bbox'], conf['map']['projection'])
 
         if self.projection is None or self.projection == '':
-            self.projection = projection
+            self.projection = conf['map']['projection']
 
         if self.uuid is None or self.uuid == '':
             self.uuid = str(uuid.uuid1())
@@ -219,17 +195,17 @@ class Map(ResourceBase, GXPMapBase):
         def source_for(layer):
             try:
                 return conf["sources"][layer["source"]]
-            except Exception:
+            except BaseException:
                 if 'url' in layer:
                     return {'url': layer['url']}
                 else:
                     return {}
 
-        layers = [l for l in _map.get("layers", [])]
-        layer_names = set(l.alternate for l in self.local_layers)
+        layers = [l for l in conf["map"]["layers"]]
+        layer_names = set([l.alternate for l in self.local_layers])
 
         self.layer_set.all().delete()
-        self.keywords.add(*_map.get('keywords', []))
+        self.keywords.add(*conf['map'].get('keywords', []))
 
         for ordering, layer in enumerate(layers):
             self.layer_set.add(
@@ -372,7 +348,7 @@ class Map(ResourceBase, GXPMapBase):
                     'catalog': gs_catalog.get_layergroup(lg_name),
                     'ows': ogc_server_settings.ows
                 }
-            except Exception:
+            except BaseException:
                 return {
                     'catalog': None,
                     'ows': ogc_server_settings.ows
@@ -440,7 +416,7 @@ class MapLayer(models.Model, GXPLayerBase):
     and the file format to use for image tiles.
     """
 
-    map = models.ForeignKey(Map, related_name="layer_set", on_delete=models.CASCADE)
+    map = models.ForeignKey(Map, related_name="layer_set")
     # The map containing this layer
 
     stack_order = models.IntegerField(_('stack order'))
@@ -536,7 +512,7 @@ class MapLayer(models.Model, GXPLayerBase):
                         obj=layer.resourcebase_ptr):
                     cfg['disabled'] = True
                     cfg['visibility'] = False
-            except Exception:
+            except BaseException:
                 # shows maplayer with pink tiles,
                 # and signals that there is problem
                 # TODO: clear orphaned MapLayers
@@ -562,7 +538,7 @@ class MapLayer(models.Model, GXPLayerBase):
                         store=self.store, alternate=self.name).title
                 else:
                     title = Layer.objects.get(alternate=self.name).title
-        except Exception:
+        except BaseException:
             title = None
         if title is None:
             title = self.name
@@ -580,7 +556,7 @@ class MapLayer(models.Model, GXPLayerBase):
                     layer = Layer.objects.get(alternate=self.name)
                 link = "<a href=\"%s\">%s</a>" % (
                     layer.get_absolute_url(), layer.title)
-        except Exception:
+        except BaseException:
             link = None
         if link is None:
             link = "<span>%s</span> " % self.name
@@ -589,11 +565,8 @@ class MapLayer(models.Model, GXPLayerBase):
     class Meta:
         ordering = ["stack_order"]
 
-    def __str__(self):
-        return '%s?layers=%s' % (self.ows_url, self.name)
-
     def __unicode__(self):
-        return "{0}".format(self.__str__())
+        return '%s?layers=%s' % (self.ows_url, self.name)
 
 
 def pre_delete_map(instance, sender, **kwrargs):
@@ -605,7 +578,7 @@ def pre_delete_map(instance, sender, **kwrargs):
 
 
 class MapSnapshot(models.Model):
-    map = models.ForeignKey(Map, related_name="snapshot_set", on_delete=models.CASCADE)
+    map = models.ForeignKey(Map, related_name="snapshot_set")
     """
     The ID of the map this snapshot was generated from.
     """
@@ -620,7 +593,7 @@ class MapSnapshot(models.Model):
     The date/time the snapshot was created.
     """
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, blank=True, null=True, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, blank=True, null=True)
     """
     The user who created the snapshot.
     """

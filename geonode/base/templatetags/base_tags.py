@@ -20,7 +20,7 @@
 
 from django import template
 
-from pinax.ratings.models import Rating
+from agon_ratings.models import Rating
 from django.db.models import Q
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth import get_user_model
@@ -50,13 +50,13 @@ FACETS = {
 }
 
 
-@register.simple_tag
+@register.assignment_tag
 def num_ratings(obj):
     ct = ContentType.objects.get_for_model(obj)
     return len(Rating.objects.filter(object_id=obj.pk, content_type=ct))
 
 
-@register.simple_tag(takes_context=True)
+@register.assignment_tag(takes_context=True)
 def facets(context):
     request = context['request']
     title_filter = request.GET.get('title__icontains', '')
@@ -76,7 +76,7 @@ def facets(context):
         try:
             authorized = get_objects_for_user(
                 request.user, 'base.view_resourcebase').values('id')
-        except Exception:
+        except BaseException:
             pass
 
     if facet_type == 'documents':
@@ -108,7 +108,7 @@ def facets(context):
                     kws = HierarchicalKeyword.objects.filter(name__iexact=keyword)
                     for kw in kws:
                         treeqs = treeqs | HierarchicalKeyword.get_tree(kw)
-                except Exception:
+                except BaseException:
                     # Ignore keywords not actually used?
                     pass
 
@@ -146,7 +146,7 @@ def facets(context):
         if extent_filter:
             bbox = extent_filter.split(
                 ',')  # TODO: Why is this different when done through haystack?
-            bbox = list(map(str, bbox))  # 2.6 compat - float to decimal conversion
+            bbox = map(str, bbox)  # 2.6 compat - float to decimal conversion
             intersects = ~(Q(bbox_x0__gt=bbox[2]) | Q(bbox_x1__lt=bbox[0]) |
                            Q(bbox_y0__gt=bbox[3]) | Q(bbox_y1__lt=bbox[1]))
 
@@ -159,7 +159,7 @@ def facets(context):
                     kws = HierarchicalKeyword.objects.filter(name__iexact=keyword)
                     for kw in kws:
                         treeqs = treeqs | HierarchicalKeyword.get_tree(kw)
-                except Exception:
+                except BaseException:
                     # Ignore keywords not actually used?
                     pass
 
@@ -174,7 +174,7 @@ def facets(context):
         try:
             for count in counts:
                 counts_array.append((count['storeType'], count['count']))
-        except Exception:
+        except BaseException:
             pass
 
         count_dict = dict(counts_array)
@@ -249,7 +249,7 @@ def facets(context):
                     kws = HierarchicalKeyword.objects.filter(name__iexact=keyword)
                     for kw in kws:
                         treeqs = treeqs | HierarchicalKeyword.get_tree(kw)
-                except Exception:
+                except BaseException:
                     # Ignore keywords not actually used?
                     pass
 
@@ -284,17 +284,17 @@ def get_facet_title(value):
     return value
 
 
-@register.simple_tag(takes_context=True)
+@register.assignment_tag(takes_context=True)
 def get_current_path(context):
     request = context['request']
     return request.get_full_path()
 
 
-@register.simple_tag(takes_context=True)
+@register.assignment_tag(takes_context=True)
 def get_context_resourcetype(context):
     c_path = get_current_path(context)
     resource_types = ['layers', 'maps', 'documents', 'search', 'people',
-                      'groups/categories', 'groups']
+                      'groups']
     for resource_type in resource_types:
         if "/{0}/".format(resource_type) in c_path:
             return resource_type
@@ -309,13 +309,13 @@ def fullurl(context, url):
     return r.build_absolute_uri(url)
 
 
-@register.simple_tag
+@register.assignment_tag
 def get_menu(placeholder_name):
     menus = {
-        m: MenuItem.objects.filter(menu=m).order_by('order')
+        m: MenuItem.objects.filter(menu=m)
         for m in Menu.objects.filter(placeholder__name=placeholder_name)
     }
-    return OrderedDict(menus.items())
+    return OrderedDict(sorted(menus.items(), key=lambda k_v1: (k_v1[1], k_v1[0])))
 
 
 @register.inclusion_tag(filename='base/menu.html')
@@ -323,10 +323,10 @@ def render_nav_menu(placeholder_name):
     menus = {}
     try:
         menus = {
-            m: MenuItem.objects.filter(menu=m).order_by('order')
+            m: MenuItem.objects.filter(menu=m)
             for m in Menu.objects.filter(placeholder__name=placeholder_name)
         }
-    except Exception:
+    except BaseException:
         pass
 
-    return {'menus': OrderedDict(menus.items())}
+    return {'menus': OrderedDict(sorted(menus.items(), key=lambda k_v: (k_v[1], k_v[0])))}

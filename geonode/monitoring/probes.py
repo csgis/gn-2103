@@ -132,7 +132,7 @@ class BaseProbe(object):
         """
         out = {}
         iostats = psutil.net_io_counters(True)
-        for ifname, ifdata in psutil.net_if_addrs().items():
+        for ifname, ifdata in psutil.net_if_addrs().iteritems():
             ifstats = iostats.get(ifname)
             if not ifstats:
                 continue

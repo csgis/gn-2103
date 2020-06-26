@@ -18,6 +18,7 @@
 #
 #########################################################################
 
+from __future__ import absolute_import
 
 import os
 import logging
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 def _log(msg, *args):
-    logger.debug(msg, *args)
+    logger.info(msg, *args)
 
 
 # Using a string here means the worker will not have to

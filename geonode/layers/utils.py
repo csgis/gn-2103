@@ -31,13 +31,12 @@ import json
 import logging
 import tarfile
 
+from itertools import islice
 from datetime import datetime
-from urllib.parse import urlparse
-
+from urlparse import urlparse
 from osgeo import gdal, osr, ogr
 from zipfile import ZipFile, is_zipfile
 from random import choice
-from six import string_types, reraise as raise_
 
 # Django functionality
 from django.conf import settings
@@ -143,10 +142,10 @@ def get_files(filename):
 
     # Verify if the filename is in ascii format.
     try:
-        filename.encode('ascii')
+        filename.decode('ascii')
     except UnicodeEncodeError:
         msg = "Please use only characters from the english alphabet for the filename. '%s' is not yet supported." \
-            % os.path.basename(filename).encode('UTF-8', 'strict')
+            % os.path.basename(filename).encode('UTF-8')
         raise GeoNodeException(msg)
 
     # Let's unzip the filname in case it is a ZIP file
@@ -183,13 +182,13 @@ def get_files(filename):
     if extension.lower() == '.shp':
         required_extensions = dict(
             shp='.[sS][hH][pP]', dbf='.[dD][bB][fF]', shx='.[sS][hH][xX]')
-        for ext, pattern in required_extensions.items():
+        for ext, pattern in required_extensions.iteritems():
             matches = glob.glob(glob_name + pattern)
             if len(matches) == 0:
                 msg = ('Expected helper file %s does not exist; a Shapefile '
                        'requires helper files with the following extensions: '
                        '%s') % (base_name + "." + ext,
-                                list(required_extensions.keys()))
+                                required_extensions.keys())
                 raise GeoNodeException(msg)
             elif len(matches) > 1:
                 msg = ('Multiple helper files for %s exist; they need to be '
@@ -311,8 +310,8 @@ def get_valid_name(layer_name):
         possible_chars = string.ascii_lowercase + string.digits
         suffix = "".join([choice(possible_chars) for i in range(4)])
         proposed_name = '%s_%s' % (name, suffix)
-        logger.debug('Requested name already used; adjusting name '
-                     '[%s] => [%s]', layer_name, proposed_name)
+        logger.warning('Requested name already used; adjusting name '
+                       '[%s] => [%s]', layer_name, proposed_name)
     else:
         logger.debug("Using name as requested")
 
@@ -325,7 +324,7 @@ def get_valid_layer_name(layer, overwrite):
     # The first thing we do is get the layer name string
     if isinstance(layer, Layer):
         layer_name = layer.name
-    elif isinstance(layer, string_types):
+    elif isinstance(layer, basestring):
         layer_name = str(layer)
     else:
         msg = ('You must pass either a filename or a GeoNode layer object')
@@ -376,7 +375,7 @@ def get_resolution(filename):
         __, resx, __, __, __, resy = gt
         resolution = '%s %s' % (resx, resy)
         return resolution
-    except Exception:
+    except BaseException:
         return None
 
 
@@ -446,7 +445,7 @@ def get_bbox(filename):
             bbox_x1 = max(ext[0][0], ext[2][0])
             bbox_y1 = max(ext[0][1], ext[2][1])
             srid = srs.GetAuthorityCode(None) if srs else '4326'
-    except Exception:
+    except BaseException:
         pass
 
     return [bbox_x0, bbox_x1, bbox_y0, bbox_y1, "EPSG:%s" % str(srid)]
@@ -511,7 +510,7 @@ def file_upload(filename,
                     absolute_base_file = _fixup_base_file(files['shp'])
                 elif 'zip' in files and os.path.exists(files['zip']):
                     absolute_base_file = _fixup_base_file(files['zip'])
-            except Exception:
+            except BaseException:
                 absolute_base_file = None
 
             if not absolute_base_file or \
@@ -525,19 +524,22 @@ def file_upload(filename,
                     lyr = inDataSource.GetLayer(str(layer.name))
                     if not lyr:
                         raise Exception(
-                            _("Please ensure the name is consistent with the file you are trying to replace."))
+                            _("You are attempting to replace a vector layer with an incompatible source."))
+                    limit = 1
                     schema_is_compliant = False
-                    _ff = json.loads(lyr.GetFeature(0).ExportToJson())
-                    if not gtype:
+                    for feat in islice(lyr, 0, limit):
+                        _ff = json.loads(feat.ExportToJson())
+                        if not gtype:
+                            raise Exception(
+                                _("Local GeoNode layer has no geometry type."))
+                        if _ff["geometry"]["type"] in gtype or \
+                        gtype in _ff["geometry"]["type"]:
+                            schema_is_compliant = True
+                            break
+                    if not schema_is_compliant:
                         raise Exception(
-                            _("Local GeoNode layer has no geometry type."))
-                    if _ff["geometry"]["type"] in gtype or gtype in _ff["geometry"]["type"]:
-                        schema_is_compliant = True
-                    elif not schema_is_compliant:
-                        raise Exception(
-                            _("Please ensure there is at least one geometry type \
-                                that is consistent with the file you are trying to replace."))
-                except Exception as e:
+                            _("You are attempting to replace a vector layer with an incompatible schema."))
+                except BaseException as e:
                     raise Exception(
                         _("Some error occurred while trying to access the uploaded schema: %s" % str(e)))
 
@@ -572,7 +574,7 @@ def file_upload(filename,
                 category = categories[0]
             else:
                 category = None
-        except Exception:
+        except BaseException:
             pass
 
     # Generate a name that is not taken if overwrite is False.
@@ -681,7 +683,7 @@ def file_upload(filename,
                         uuid=identifier,
                         defaults=defaults
                     )
-        except Exception:
+        except BaseException:
             raise
 
     # Delete the old layers if overwrite is true
@@ -784,7 +786,7 @@ def file_upload(filename,
 
             # Refresh from DB
             layer.refresh_from_db()
-        except Exception:
+        except BaseException:
             import traceback
             tb = traceback.format_exc()
             logger.error(tb)
@@ -808,7 +810,7 @@ def upload(incoming, user=None, overwrite=False,
        It catches GeoNodeExceptions and gives a report per file
     """
     if verbosity > 1:
-        print("Verifying that GeoNode is running ...", file=console)
+        print >> console, "Verifying that GeoNode is running ..."
 
     if console is None:
         console = open(os.devnull, 'w')
@@ -845,7 +847,7 @@ def upload(incoming, user=None, overwrite=False,
     number = len(potential_files)
     if verbosity > 1:
         msg = "Found %d potential layers." % number
-        print(msg, file=console)
+        print >> console, msg
 
     if (number > 1) and (name is not None):
         msg = 'Failed to process.  Cannot specify name with multiple imports.'
@@ -870,7 +872,7 @@ def upload(incoming, user=None, overwrite=False,
                 msg = ('Stopping process because '
                        '--overwrite was not set '
                        'and a layer with this name already exists.')
-                print(msg, file=sys.stderr)
+                print >> sys.stderr, msg
         else:
             save_it = True
 
@@ -923,9 +925,9 @@ def upload(incoming, user=None, overwrite=False,
                         msg = ('Stopping process because '
                                '--ignore-errors was not set '
                                'and an error was found.')
-                        print(msg, file=sys.stderr)
+                        print >> sys.stderr, msg
                         msg = 'Failed to process %s' % filename
-                        raise_(Exception, e, sys.exc_info()[2])
+                        raise Exception(msg, e), None, sys.exc_info()[2]
 
         msg = "[%s] Layer for '%s' (%d/%d)" % (status, filename, i + 1, number)
         info = {'file': filename, 'status': status}
@@ -938,7 +940,7 @@ def upload(incoming, user=None, overwrite=False,
 
         output.append(info)
         if verbosity > 0:
-            print(msg, file=console)
+            print >> console, msg
     return output
 
 
@@ -955,7 +957,7 @@ def create_thumbnail(instance, thumbnail_remote_url, thumbnail_create_url=None,
         _thumbnail_dir = os.path.join(settings.MEDIA_ROOT, 'thumbs')
         _thumbnail_path = os.path.join(_thumbnail_dir, thumbnail_name)
         _thumb_exists = storage.exists(_thumbnail_path)
-    except Exception:
+    except BaseException:
         _thumbnail_dir = os.path.join(settings.STATIC_ROOT, 'thumbs')
         _thumbnail_path = os.path.join(_thumbnail_dir, thumbnail_name)
         _thumb_exists = storage.exists(_thumbnail_path)
@@ -1017,7 +1019,7 @@ def create_thumbnail(instance, thumbnail_remote_url, thumbnail_create_url=None,
                                 logger.error(msg)
                                 # Replace error message with None.
                                 image = None
-                        except Exception:
+                        except BaseException:
                             image = None
                     if image is None:
                         request_body = {
@@ -1035,7 +1037,7 @@ def create_thumbnail(instance, thumbnail_remote_url, thumbnail_create_url=None,
                             request_body = {key: value for (key, value) in
                                             [(lambda p: (p.split("=")[0], p.split("=")[1]))(p) for p in params]}
                             # request_body['thumbnail_create_url'] = thumbnail_create_url
-                            if 'bbox' in request_body and isinstance(request_body['bbox'], string_types):
+                            if 'bbox' in request_body and isinstance(request_body['bbox'], basestring):
                                 request_body['bbox'] = [str(coord) for coord in request_body['bbox'].split(",")]
                                 request_body['bbox'] = [
                                     request_body['bbox'][0],
@@ -1054,8 +1056,7 @@ def create_thumbnail(instance, thumbnail_remote_url, thumbnail_create_url=None,
 
                         try:
                             image = _prepare_thumbnail_body_from_opts(request_body)
-                        except Exception as e:
-                            logger.exception(e)
+                        except BaseException:
                             image = None
 
                 if image is None:
@@ -1076,7 +1077,7 @@ def create_thumbnail(instance, thumbnail_remote_url, thumbnail_create_url=None,
 
                         for _p in params.keys():
                             if _p.lower() not in thumbnail_create_url.lower():
-                                thumbnail_create_url = thumbnail_create_url + '&%s=%s' % (str(_p), str(params[_p]))
+                                thumbnail_create_url = thumbnail_create_url + '&%s=%s' % (_p, params[_p])
                         if check_ogc_backend(geoserver.BACKEND_PACKAGE):
                             _ogc_server_settings = settings.OGC_SERVER['default']
                             _user = _ogc_server_settings['USER'] if 'USER' in _ogc_server_settings else 'admin'
@@ -1084,18 +1085,19 @@ def create_thumbnail(instance, thumbnail_remote_url, thumbnail_create_url=None,
                                 'PASSWORD' in _ogc_server_settings else 'geoserver'
                             import base64
                             valid_uname_pw = base64.b64encode(
-                                ("%s:%s" % (_user, _pwd)).encode("UTF-8")).decode("ascii")
+                                b"%s:%s" % (_user, _pwd)).decode("ascii")
                             headers['Authorization'] = 'Basic {}'.format(valid_uname_pw)
                         resp, image = ogc_client.request(thumbnail_create_url, headers=headers)
-                        if 'ServiceException' in str(image) or \
+                        if 'ServiceException' in image or \
                         resp.status_code < 200 or resp.status_code > 299:
                             msg = 'Unable to obtain thumbnail: %s' % image
-                            logger.debug(msg)
+                            logger.error(msg)
 
                             # Replace error message with None.
                             image = None
-                    except Exception as e:
+                    except BaseException as e:
                         logger.exception(e)
+
                         # Replace error message with None.
                         image = None
 
@@ -1103,7 +1105,7 @@ def create_thumbnail(instance, thumbnail_remote_url, thumbnail_create_url=None,
                     instance.save_thumbnail(thumbnail_name, image=image)
                 else:
                     msg = 'Unable to obtain thumbnail for: %s' % instance
-                    logger.debug(msg)
+                    logger.error(msg)
                     instance.save_thumbnail(thumbnail_name, image=None)
 
 
@@ -1143,23 +1145,23 @@ def create_gs_thumbnail_geonode(instance, overwrite=False, check_bbox=False):
                     local_bboxes.append(wgs84_bbox)
                     if _l.storeType != "remoteStore":
                         local_layers.append(_l.alternate)
-        layers = ",".join(local_layers)
+        layers = ",".join(local_layers).encode('utf-8')
     else:
         # Compute Bounds
         if instance.store:
             _ll = Layer.objects.filter(
                 store=instance.store,
-                alternate=instance.alternate)
+                alternate=instance.alternate.encode('utf-8'))
         else:
             _ll = Layer.objects.filter(
-                alternate=instance.alternate)
+                alternate=instance.alternate.encode('utf-8'))
         for _l in _ll:
             if _l.name == instance.name:
                 wgs84_bbox = bbox_to_projection(_l.bbox)
                 local_bboxes.append(wgs84_bbox)
                 if _l.storeType != "remoteStore":
                     local_layers.append(_l.alternate)
-        layers = ",".join(local_layers)
+        layers = ",".join(local_layers).encode('utf-8')
 
     if local_bboxes:
         for _bbox in local_bboxes:
@@ -1189,18 +1191,16 @@ def create_gs_thumbnail_geonode(instance, overwrite=False, check_bbox=False):
     }
 
     if bbox:
-        _default_thumb_size = getattr(
-            settings, 'THUMBNAIL_GENERATOR_DEFAULT_SIZE', {'width': 240, 'height': 200})
         params['bbox'] = "%s,%s,%s,%s" % (bbox[0], bbox[2], bbox[1], bbox[3])
         params['crs'] = 'EPSG:4326'
-        params['width'] = _default_thumb_size['width']
-        params['height'] = _default_thumb_size['height']
+        params['width'] = 240
+        params['height'] = 180
 
     user = None
     try:
         username = ogc_server_settings.credentials.username
         user = get_user_model().objects.get(username=username)
-    except Exception as e:
+    except BaseException as e:
         logger.exception(e)
 
     access_token = None
@@ -1232,11 +1232,11 @@ def delete_orphaned_layers():
     for filename in os.listdir(layer_path):
         fn = os.path.join(layer_path, filename)
         if LayerFile.objects.filter(file__icontains=filename).count() == 0:
-            logger.debug('Removing orphan layer file %s' % fn)
+            logger.info('Removing orphan layer file %s' % fn)
             try:
                 os.remove(fn)
             except OSError:
-                logger.warn('Could not delete file %s' % fn)
+                logger.info('Could not delete file %s' % fn)
 
 
 def set_layers_permissions(permissions_name, resources_names=None,

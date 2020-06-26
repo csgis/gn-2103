@@ -96,7 +96,7 @@ def csw_global_dispatch(request):
                                                  for e in authorized_ids)) + ")"
             authorized_layers_filter = "id IN " + authorized_layers
             mdict['repository']['filter'] += " AND " + authorized_layers_filter
-            if request.user and request.user.is_authenticated:
+            if request.user and request.user.is_authenticated():
                 mdict['repository']['filter'] = "({}) OR ({})".format(mdict['repository']['filter'],
                                                                       authorized_layers_filter)
         else:
@@ -114,13 +114,13 @@ def csw_global_dispatch(request):
 
         if not is_admin and settings.GROUP_PRIVATE_RESOURCES:
             groups_ids = []
-            if request.user and request.user.is_authenticated:
+            if request.user and request.user.is_authenticated():
                 for group in request.user.groups.all():
                     groups_ids.append(group.id)
                 group_list_all = []
                 try:
                     group_list_all = request.user.group_list_all().values('group')
-                except Exception:
+                except BaseException:
                     pass
                 for group in group_list_all:
                     if isinstance(group, dict):
@@ -170,7 +170,7 @@ def csw_global_dispatch(request):
                   'gco': 'http://www.isotc211.org/2005/gco',
                   'gmi': 'http://www.isotc211.org/2005/gmi'}
 
-        for prefix, uri in spaces.items():
+        for prefix, uri in spaces.iteritems():
             ET.register_namespace(prefix, uri)
 
         if access_token and not access_token.is_expired():
@@ -187,7 +187,7 @@ def csw_global_dispatch(request):
                                 url.text += "&"
                             url.text += ("access_token=%s" % (access_token.token))
                             url.set('updated', 'yes')
-                except Exception:
+                except BaseException:
                     pass
             content = ET.tostring(tree, encoding='utf8', method='xml')
     finally:
@@ -247,9 +247,12 @@ def data_json(request):
 
 # transforms a row sql query into a two dimension array
 def dictfetchall(cursor):
-    """Generate all rows from a cursor as a dict"""
-    for row in cursor.fetchall():
-        yield {col[0]: row for col in cursor.description}
+    """Returns all rows from a cursor as a dict"""
+    desc = cursor.description
+    return [
+        dict(zip([col[0] for col in desc], row))
+        for row in cursor.fetchall()
+    ]
 
 
 # choose separators
@@ -260,9 +263,8 @@ def get_CSV_spec_char():
 # format value to unicode str without ';' char
 def fst(value):
     chrs = get_CSV_spec_char()
-    result = "{}".format(value)
-    result = result.replace(chrs["separator"], ',').replace('\\n', ' ').replace('\r\n', ' ')
-    return result
+    return unicode(value).replace(chrs["separator"],
+                                  ',').replace('\\n', ' ').replace('\r\n', ' ')
 
 
 # from a resource object, build the corresponding metadata dict
@@ -281,7 +283,8 @@ def get_keywords(resource):
     cursor.execute(
         "SELECT a.*,b.* FROM taggit_taggeditem as a,taggit_tag"
         " as b WHERE a.object_id = %s AND a.tag_id=b.id", [resource.id])
-    for x in dictfetchall(cursor):
+    struct_kw = dictfetchall(cursor)
+    for x in struct_kw:
         content += fst(x['name']) + ', '
     return content[:-2]
 
@@ -368,7 +371,8 @@ def csw_render_extra_format_txt(request, layeruuid, resname):
     logger = logging.getLogger(__name__)
     logger.error(content)
 
-    return HttpResponse(content, content_type="text/csv")
+    return HttpResponse(content.encode('utf-8').decode('utf-8'),
+                        content_type="text/csv")
 
 
 def csw_render_extra_format_html(request, layeruuid, resname):
@@ -390,10 +394,14 @@ def csw_render_extra_format_html(request, layeruuid, resname):
         layer = Layer.objects.get(resourcebase_ptr_id=resource.id)
         extra_res_md['atrributes'] = ''
         for attr in layer.attribute_set.all():
-            s = "<tr><td>{}</td><td>{}</td><td>{}</td></tr>".format(
-                attr.attribute, attr.attribute_label, attr.description
-            )
-            extra_res_md['atrributes'] += s
+            extra_res_md['atrributes'] += '<tr>'
+            extra_res_md['atrributes'] += '<td>' + unicode(
+                attr.attribute) + '</td>'
+            extra_res_md['atrributes'] += '<td>' + unicode(
+                attr.attribute_label) + '</td>'
+            extra_res_md['atrributes'] += '<td>' + unicode(
+                attr.description) + '</td>'
+            extra_res_md['atrributes'] += '</tr>'
 
     pocr = ContactRole.objects.get(
         resource_id=resource.id, role='pointOfContact')

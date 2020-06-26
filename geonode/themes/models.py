@@ -37,18 +37,15 @@ class Partner(models.Model):
     @property
     def logo_class(self):
         _logo_class = slugify("logo_%s" % self.name)
-        return "{0}".format(_logo_class)
+        return u"{0}".format(_logo_class)
 
     @property
     def partner_link(self):
         _href = self.href if self.href.startswith('http') else 'http://%s' % self.href
-        return "{0}".format(_href)
-
-    def __str__(self):
-        return "{0}".format(self.title)
+        return u"{0}".format(_href)
 
     def __unicode__(self):
-        return "{0}".format(self.__str__())
+        return u"{0}".format(self.title)
 
     class Meta:
         ordering = ("name", )
@@ -192,13 +189,10 @@ class GeoNodeThemeCustomization(models.Model):
     def theme_uuid(self):
         if not self.identifier:
             self.identifier = slugify("theme id %s %s" % (self.id, self.date))
-        return "{0}".format(self.identifier)
-
-    def __str__(self):
-        return "{0}".format(self.name)
+        return u"{0}".format(self.identifier)
 
     def __unicode__(self):
-        return "{0}".format(self.__str__())
+        return u"{0}".format(self.name)
 
     class Meta:
         ordering = ("date", )

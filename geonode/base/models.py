@@ -46,7 +46,7 @@ from mptt.models import MPTTModel, TreeForeignKey
 
 from polymorphic.models import PolymorphicModel
 from polymorphic.managers import PolymorphicManager
-from pinax.ratings.models import OverallRating
+from agon_ratings.models import OverallRating
 from imagekit.models import ImageSpecField
 from imagekit.processors import ResizeToFill
 
@@ -63,13 +63,16 @@ from geonode.utils import (
 from geonode.security.models import PermissionLevelMixin
 from taggit.managers import TaggableManager, _TaggableManager
 from taggit.models import TagBase, ItemBase
-from treebeard.mp_tree import MP_Node, MP_NodeQuerySet, MP_NodeManager
+from treebeard.mp_tree import MP_Node
 
 from geonode.people.enumerations import ROLE_VALUES
 
 from pyproj import transform, Proj
-
-from urllib.parse import urlparse, urlsplit, urljoin
+try:  # python2
+    from urlparse import urlparse, urlsplit, urljoin
+except ImportError:
+    # Python 3 fallback
+    from urllib.parse import urlparse, urlsplit, urljoin
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +82,7 @@ class ContactRole(models.Model):
     ContactRole is an intermediate model to bind Profiles as Contacts to Resources and apply roles.
     """
     resource = models.ForeignKey('ResourceBase', blank=False, null=False, on_delete=models.CASCADE)
-    contact = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    contact = models.ForeignKey(settings.AUTH_USER_MODEL)
     role = models.CharField(
         choices=ROLE_VALUES,
         max_length=255,
@@ -143,11 +146,8 @@ class TopicCategory(models.Model):
     is_choice = models.BooleanField(default=True)
     fa_class = models.CharField(max_length=64, default='fa-times')
 
-    def __str__(self):
-        return self.gn_description
-
     def __unicode__(self):
-        return "{0}".format(self.__str__())
+        return u"{0}".format(self.gn_description)
 
     class Meta:
         ordering = ("identifier",)
@@ -166,11 +166,8 @@ class SpatialRepresentationType(models.Model):
     gn_description = models.CharField('GeoNode description', max_length=255)
     is_choice = models.BooleanField(default=True)
 
-    def __str__(self):
-        return "{0}".format(self.gn_description)
-
     def __unicode__(self):
-        return "{0}".format(self.__str__())
+        return u"{0}".format(self.gn_description)
 
     class Meta:
         ordering = ("identifier",)
@@ -191,7 +188,6 @@ class Region(MPTTModel):
         'self',
         null=True,
         blank=True,
-        on_delete=models.CASCADE,
         related_name='children')
 
     # Save bbox values in the database.
@@ -224,10 +220,7 @@ class Region(MPTTModel):
         default='EPSG:4326')
 
     def __unicode__(self):
-        return "{0}".format(self.__str__())
-
-    def __str__(self):
-        return "{0}".format(self.name)
+        return u"{0}".format(self.name)
 
     @property
     def bbox(self):
@@ -276,10 +269,7 @@ class RestrictionCodeType(models.Model):
     is_choice = models.BooleanField(default=True)
 
     def __unicode__(self):
-        return "{0}".format(self.__str__())
-
-    def __str__(self):
-        return "{0}".format(self.gn_description)
+        return u"{0}".format(self.gn_description)
 
     class Meta:
         ordering = ("identifier",)
@@ -308,10 +298,7 @@ class License(models.Model):
     license_text = models.TextField(null=True, blank=True)
 
     def __unicode__(self):
-        return "{0}".format(self.__str__())
-
-    def __str__(self):
-        return "{0}".format(self.name)
+        return u"{0}".format(self.name)
 
     @property
     def name_long(self):
@@ -336,25 +323,8 @@ class License(models.Model):
         verbose_name_plural = 'Licenses'
 
 
-class HierarchicalKeywordQuerySet(MP_NodeQuerySet):
-    """QuerySet to automatically create a root node if `depth` not given."""
-
-    def create(self, **kwargs):
-        if 'depth' not in kwargs:
-            return self.model.add_root(**kwargs)
-        return super(HierarchicalKeywordQuerySet, self).create(**kwargs)
-
-
-class HierarchicalKeywordManager(MP_NodeManager):
-
-    def get_queryset(self):
-        return HierarchicalKeywordQuerySet(self.model).order_by('path')
-
-
 class HierarchicalKeyword(TagBase, MP_Node):
     node_order_by = ['name']
-
-    objects = HierarchicalKeywordManager()
 
     @classmethod
     def dump_bulk_tree(cls, parent=None, keep_ids=True):
@@ -394,14 +364,14 @@ class HierarchicalKeyword(TagBase, MP_Node):
                         parentser['nodes'] = []
                     parentser['nodes'].append(newobj)
                 lnk[pyobj.pk] = newobj
-        except Exception:
+        except BaseException:
             pass
         return ret
 
 
 class TaggedContentItem(ItemBase):
-    content_object = models.ForeignKey('ResourceBase', on_delete=models.CASCADE)
-    tag = models.ForeignKey('HierarchicalKeyword', related_name='keywords', on_delete=models.CASCADE)
+    content_object = models.ForeignKey('ResourceBase')
+    tag = models.ForeignKey('HierarchicalKeyword', related_name='keywords')
 
     # see https://github.com/alex/django-taggit/issues/101
     @classmethod
@@ -416,6 +386,7 @@ class TaggedContentItem(ItemBase):
 
 
 class _HierarchicalTagManager(_TaggableManager):
+
     def add(self, *tags):
         str_tags = set([
             t
@@ -462,10 +433,7 @@ class Thesaurus(models.Model):
     slug = models.CharField(max_length=64, default='')
 
     def __unicode__(self):
-        return "{0}".format(self.__str__())
-
-    def __str__(self):
-        return "{0}".format(self.identifier)
+        return u"{0}".format(self.identifier)
 
     class Meta:
         ordering = ("identifier",)
@@ -483,13 +451,10 @@ class ThesaurusKeywordLabel(models.Model):
     label = models.CharField(max_length=255)
 #    note  = models.CharField(max_length=511)
 
-    keyword = models.ForeignKey('ThesaurusKeyword', related_name='keyword', on_delete=models.CASCADE)
+    keyword = models.ForeignKey('ThesaurusKeyword', related_name='keyword')
 
     def __unicode__(self):
-        return "{0}".format(self.__str__())
-
-    def __str__(self):
-        return "{0}".format(self.label)
+        return u"{0}".format(self.label)
 
     class Meta:
         ordering = ("keyword", "lang")
@@ -510,13 +475,10 @@ class ThesaurusKeyword(models.Model):
         null=True,
         blank=True)
 
-    thesaurus = models.ForeignKey('Thesaurus', related_name='thesaurus', on_delete=models.CASCADE)
+    thesaurus = models.ForeignKey('Thesaurus', related_name='thesaurus')
 
     def __unicode__(self):
-        return "{0}".format(self.__str__())
-
-    def __str__(self):
-        return "{0}".format(self.alt_label)
+        return u"{0}".format(self.alt_label)
 
     @property
     def labels(self):
@@ -598,8 +560,7 @@ class ResourceBase(PolymorphicModel, PermissionLevelMixin, ItemBase):
         blank=True,
         null=True,
         related_name='owned_resource',
-        verbose_name=_("Owner"),
-        on_delete=models.CASCADE)
+        verbose_name=_("Owner"))
     contacts = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         through='ContactRole')
@@ -664,8 +625,8 @@ class ResourceBase(PolymorphicModel, PermissionLevelMixin, ItemBase):
         help_text=restriction_code_type_help_text,
         null=True,
         blank=True,
-        on_delete=models.CASCADE,
-        limit_choices_to=Q(is_choice=True))
+        limit_choices_to=Q(
+            is_choice=True))
 
     constraints_other = models.TextField(
         _('restrictions other'),
@@ -675,8 +636,7 @@ class ResourceBase(PolymorphicModel, PermissionLevelMixin, ItemBase):
 
     license = models.ForeignKey(License, null=True, blank=True,
                                 verbose_name=_("License"),
-                                help_text=license_help_text,
-                                on_delete=models.CASCADE)
+                                help_text=license_help_text)
     language = models.CharField(
         _('language'),
         max_length=3,
@@ -688,16 +648,16 @@ class ResourceBase(PolymorphicModel, PermissionLevelMixin, ItemBase):
         TopicCategory,
         null=True,
         blank=True,
-        on_delete=models.CASCADE,
-        limit_choices_to=Q(is_choice=True),
+        limit_choices_to=Q(
+            is_choice=True),
         help_text=category_help_text)
 
     spatial_representation_type = models.ForeignKey(
         SpatialRepresentationType,
         null=True,
         blank=True,
-        on_delete=models.CASCADE,
-        limit_choices_to=Q(is_choice=True),
+        limit_choices_to=Q(
+            is_choice=True),
         verbose_name=_("spatial representation type"),
         help_text=spatial_representation_type_help_text)
 
@@ -727,7 +687,7 @@ class ResourceBase(PolymorphicModel, PermissionLevelMixin, ItemBase):
         null=True,
         help_text=data_quality_statement_help_text)
 
-    group = models.ForeignKey(Group, null=True, blank=True, on_delete=models.CASCADE)
+    group = models.ForeignKey(Group, null=True, blank=True)
 
     # Section 9
     # see metadata_author property definition below
@@ -823,10 +783,7 @@ class ResourceBase(PolymorphicModel, PermissionLevelMixin, ItemBase):
     last_updated = models.DateTimeField(auto_now=True)
 
     def __unicode__(self):
-        return "{0}".format(self.__str__())
-
-    def __str__(self):
-        return "{0}".format(self.title)
+        return str(self.title).encode("ascii", "ignore")
 
     # fields controlling security state
     dirty_state = models.BooleanField(
@@ -894,7 +851,7 @@ class ResourceBase(PolymorphicModel, PermissionLevelMixin, ItemBase):
             try:
                 llbbox = bbox_to_projection([float(coord) for coord in llbbox] + [self.srid, ],
                                             target_srid=4326)
-            except Exception:
+            except BaseException:
                 pass
         return [
             llbbox[0],  # x0
@@ -1012,7 +969,7 @@ class ResourceBase(PolymorphicModel, PermissionLevelMixin, ItemBase):
                 return ','.join([kw.name for kw in keywords_qs])
             else:
                 return ''
-        except Exception:
+        except BaseException:
             return ''
 
     def set_bounds_from_center_and_zoom(self, center_x, center_y, zoom):
@@ -1100,7 +1057,7 @@ class ResourceBase(PolymorphicModel, PermissionLevelMixin, ItemBase):
                 self.zoom = zoom
                 self.center_x = center_x
                 self.center_y = center_y
-            except Exception:
+            except BaseException:
                 pass
 
     def download_links(self):
@@ -1221,71 +1178,52 @@ class ResourceBase(PolymorphicModel, PermissionLevelMixin, ItemBase):
             for _thumb in glob.glob(storage.path('thumbs/%s*' % os.path.splitext(filename)[0])):
                 try:
                     os.remove(_thumb)
-                except Exception:
+                except BaseException:
                     pass
 
-            if upload_path and image:
-                actual_name = storage.save(upload_path, ContentFile(image))
-                url = storage.url(actual_name)
-                _url = urlparse(url)
-                _upload_path = os.path.join('thumbs/', os.path.basename(_url.path))
-                if upload_path != _upload_path:
-                    if storage.exists(_upload_path):
-                        storage.delete(_upload_path)
-                    try:
-                        os.rename(
-                            storage.path(upload_path),
-                            storage.path(_upload_path)
-                        )
-                    except Exception as e:
-                        logger.warn(e)
-
+            actual_name = storage.save(upload_path, ContentFile(image))
+            url = storage.url(actual_name)
+            _url = urlparse(url)
+            _upload_path = os.path.join('thumbs/', os.path.basename(_url.path))
+            if upload_path != _upload_path:
+                if storage.exists(_upload_path):
+                    storage.delete(_upload_path)
                 try:
-                    # Optimize the Thumbnail size and resolution
-                    from PIL import Image
-                    from resizeimage import resizeimage
-                    _default_thumb_size = getattr(
-                        settings, 'THUMBNAIL_GENERATOR_DEFAULT_SIZE', {'width': 240, 'height': 200})
-                    im = Image.open(open(storage.path(_upload_path), mode='rb'))
-                    im.thumbnail(
-                        (_default_thumb_size['width'], _default_thumb_size['height']),
-                        resample=Image.ANTIALIAS)
-                    cover = resizeimage.resize_cover(
-                        im,
-                        [_default_thumb_size['width'], _default_thumb_size['height']])
-                    cover.save(storage.path(_upload_path), format='JPEG')
-                except Exception as e:
-                    logger.debug(e)
-
-                # check whether it is an URI or not
-                parsed = urlsplit(url)
-                if not parsed.netloc:
-                    # assuming is a relative path to current site
-                    site_url = settings.SITEURL.rstrip('/') if settings.SITEURL.startswith('http') else settings.SITEURL
-                    url = urljoin(site_url, url)
-
-                # should only have one 'Thumbnail' link
-                _links = Link.objects.filter(resource=self, name='Thumbnail')
-                if _links and _links.count() > 1:
-                    _links.delete()
-                obj, created = Link.objects.get_or_create(
-                    resource=self,
-                    name='Thumbnail',
-                    defaults=dict(
-                        url=url,
-                        extension='png',
-                        mime='image/png',
-                        link_type='image',
+                    os.rename(
+                        storage.path(upload_path),
+                        storage.path(_upload_path)
                     )
+                except BaseException as e:
+                    logger.exception(e)
+
+            # check whether it is an URI or not
+            parsed = urlsplit(url)
+            if not parsed.netloc:
+                # assuming is a relative path to current site
+                site_url = settings.SITEURL.rstrip('/') if settings.SITEURL.startswith('http') else settings.SITEURL
+                url = urljoin(site_url, url)
+
+            # should only have one 'Thumbnail' link
+            _links = Link.objects.filter(resource=self, name='Thumbnail')
+            if _links.count() > 1:
+                _links.delete()
+            obj, created = Link.objects.get_or_create(
+                resource=self,
+                name='Thumbnail',
+                defaults=dict(
+                    url=url,
+                    extension='png',
+                    mime='image/png',
+                    link_type='image',
                 )
-                self.thumbnail_url = url
-                obj.url = url
-                obj.save()
-                ResourceBase.objects.filter(id=self.id).update(
-                    thumbnail_url=url
-                )
+            )
+            self.thumbnail_url = url
+            obj.url = url
+            obj.save()
+            ResourceBase.objects.filter(id=self.id).update(
+                thumbnail_url=url
+            )
         except Exception as e:
-            logger.exception(e)
             logger.error(
                 'Error when generating the thumbnail for resource %s. (%s)' %
                 (self.id, str(e)))
@@ -1334,7 +1272,7 @@ class ResourceBase(PolymorphicModel, PermissionLevelMixin, ItemBase):
         else:
             try:
                 user = ResourceBase.objects.admin_contact().user
-            except Exception:
+            except BaseException:
                 pass
 
         if user:
@@ -1402,7 +1340,7 @@ class ResourceBase(PolymorphicModel, PermissionLevelMixin, ItemBase):
         # custom permissions,
         # add, change and delete are standard in django-guardian
         permissions = (
-            # ('view_resourcebase', 'Can view resource'),
+            ('view_resourcebase', 'Can view resource'),
             ('change_resourcebase_permissions', 'Can change resource permissions'),
             ('download_resourcebase', 'Can download resource'),
             ('publish_resourcebase', 'Can publish resource'),
@@ -1449,7 +1387,7 @@ class Link(models.Model):
         * OGC:WFS: for WFS service links
         * OGC:WCS: for WCS service links
     """
-    resource = models.ForeignKey(ResourceBase, blank=True, null=True, on_delete=models.CASCADE)
+    resource = models.ForeignKey(ResourceBase, blank=True, null=True)
     extension = models.CharField(
         max_length=255,
         help_text=_('For example "kml"'))
@@ -1465,10 +1403,7 @@ class Link(models.Model):
     objects = LinkManager()
 
     def __unicode__(self):
-        return "{0}".format(self.__str__())
-
-    def __str__(self):
-        return "{0} link".format(self.link_type)
+        return u"{0} link".format(self.link_type)
 
 
 class MenuPlaceholder(models.Model):
@@ -1481,10 +1416,10 @@ class MenuPlaceholder(models.Model):
     )
 
     def __unicode__(self):
-        return "{0}".format(self.__str__())
+        return u"{0}".format(self.name)
 
     def __str__(self):
-        return "{0}".format(self.name)
+        return self.name
 
 
 class Menu(models.Model):
@@ -1504,10 +1439,10 @@ class Menu(models.Model):
     )
 
     def __unicode__(self):
-        return "{0}".format(self.__str__())
+        return u"{0}".format(self.title)
 
     def __str__(self):
-        return "{0}".format(self.title)
+        return self.title
 
     class Meta:
         unique_together = (
@@ -1526,8 +1461,8 @@ class MenuItem(models.Model):
     )
     menu = models.ForeignKey(
         to='Menu',
-        null=False,
-        on_delete=models.CASCADE
+        on_delete=models.CASCADE,
+        null=False
     )
     order = models.IntegerField(
         null=False
@@ -1539,32 +1474,11 @@ class MenuItem(models.Model):
         blank=False
     )
 
-    def __eq__(self, other):
-        return self.order == other.order
-
-    def __ne__(self, other):
-        return self.order != other.order
-
-    def __lt__(self, other):
-        return self.order < other.order
-
-    def __le__(self, other):
-        return self.order <= other.order
-
-    def __gt__(self, other):
-        return self.order > other.order
-
-    def __ge__(self, other):
-        return self.order >= other.order
-
-    def __hash__(self):
-        return hash(self.url)
-
     def __unicode__(self):
-        return "{0}".format(self.__str__())
+        return u"{0}".format(self.title)
 
     def __str__(self):
-        return "{0}".format(self.title)
+        return self.title
 
     class Meta:
         unique_together = (
@@ -1575,7 +1489,7 @@ class MenuItem(models.Model):
 
 
 class CuratedThumbnail(models.Model):
-    resource = models.OneToOneField(ResourceBase, on_delete="CASCASE")
+    resource = models.OneToOneField(ResourceBase)
     img = models.ImageField(upload_to='curated_thumbs')
     # TOD read thumb size from settings
     img_thumbnail = ImageSpecField(source='img',
@@ -1591,7 +1505,7 @@ class CuratedThumbnail(models.Model):
             _upload_path = os.path.join(os.path.dirname(upload_path), actual_name)
             if not os.path.exists(_upload_path):
                 os.rename(upload_path, _upload_path)
-        except Exception as e:
+        except BaseException as e:
             logger.exception(e)
         return self.img_thumbnail.url
 
@@ -1615,7 +1529,7 @@ def resourcebase_post_save(instance, *args, **kwargs):
             csw_insert_date=now(),
             license=instance.license)
         instance.refresh_from_db()
-    except Exception:
+    except BaseException:
         tb = traceback.format_exc()
         if tb:
             logger.debug(tb)
@@ -1629,7 +1543,7 @@ def resourcebase_post_save(instance, *args, **kwargs):
                 queryset = instance.regions.all().order_by('name')
                 for region in queryset:
                     print ("%s : %s" % (region.name, region.geographic_bounding_box))
-            except Exception:
+            except:
                 tb = traceback.format_exc()
             else:
                 tb = None
@@ -1660,7 +1574,7 @@ def resourcebase_post_save(instance, *args, **kwargs):
                         regions_to_add.append(region)
                     if region.level == 0 and region.parent is None:
                         global_regions.append(region)
-                except Exception:
+                except BaseException:
                     tb = traceback.format_exc()
                     if tb:
                         logger.debug(tb)
@@ -1670,7 +1584,7 @@ def resourcebase_post_save(instance, *args, **kwargs):
                     instance.regions.add(*regions_to_add)
                 else:
                     instance.regions.add(*global_regions)
-    except Exception:
+    except BaseException:
         tb = traceback.format_exc()
         if tb:
             logger.debug(tb)
@@ -1679,7 +1593,7 @@ def resourcebase_post_save(instance, *args, **kwargs):
         # refresh catalogue metadata records
         from geonode.catalogue.models import catalogue_post_save
         catalogue_post_save(instance=instance, sender=instance.__class__)
-    except Exception:
+    except BaseException:
         tb = traceback.format_exc()
         if tb:
             logger.debug(tb)

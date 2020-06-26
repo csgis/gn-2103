@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
 
 from django.db import migrations, models
 
@@ -13,6 +14,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='notificationcheck',
             name='severity',
-            field=models.CharField(default='error', max_length=32, choices=[('warning','Warning'), ('error','Error'), ('fatal','Fatal')]),
+            field=models.CharField(default=b'error', max_length=32, choices=[(b'warning', b'Warning'), (b'error', b'Error'), (b'fatal', b'Fatal')]),
         ),
     ]

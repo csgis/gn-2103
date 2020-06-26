@@ -25,9 +25,8 @@ import json
 import logging
 import traceback
 import requests
-from . import models
+import models
 
-from six import string_types
 from requests.auth import HTTPBasicAuth
 from django.conf import settings
 from django.db.models import Q
@@ -55,7 +54,7 @@ def get_visible_resources(queryset,
         is_admin = user.is_superuser if user else False
         try:
             is_manager = user.groupmember_set.all().filter(role='manager').exists()
-        except Exception:
+        except BaseException:
             is_manager = False
 
     # Get the list of objects the user has access to
@@ -66,18 +65,18 @@ def get_visible_resources(queryset,
     manager_groups = []
     try:
         group_list_all = user.group_list_all().values('group')
-    except Exception:
+    except BaseException:
         pass
     try:
         manager_groups = Group.objects.filter(
             name__in=user.groupmember_set.filter(role="manager").values_list("group__slug", flat=True))
-    except Exception:
+    except BaseException:
         pass
     try:
         anonymous_group = Group.objects.get(name='anonymous')
         if anonymous_group and anonymous_group not in groups:
             groups.append(anonymous_group)
-    except Exception:
+    except BaseException:
         pass
 
     filter_set = queryset
@@ -159,7 +158,7 @@ def get_users_with_perms(obj):
             users[item['user_id']] = [permissions[item['permission_id']], ]
 
     profiles = {}
-    for profile in get_user_model().objects.filter(id__in=list(users.keys())):
+    for profile in get_user_model().objects.filter(id__in=users.keys()):
         profiles[profile] = users[profile.id]
 
     return profiles
@@ -189,7 +188,7 @@ def get_geofence_rules_count():
         rules_objs = json.loads(r.text)
         rules_count = rules_objs['count']
         return int(rules_count)
-    except Exception:
+    except BaseException:
         tb = traceback.format_exc()
         logger.debug(tb)
         return -1
@@ -224,7 +223,7 @@ def get_highest_priority():
         else:
             highest_priority = 0
         return int(highest_priority)
-    except Exception:
+    except BaseException:
         tb = traceback.format_exc()
         logger.debug(tb)
         return -1
@@ -269,7 +268,7 @@ def purge_geofence_all():
                                 raise e
                 except Exception:
                     logger.debug("Response [{}] : {}".format(r.status_code, r.text))
-        except Exception:
+        except BaseException:
             tb = traceback.format_exc()
             logger.debug(tb)
 
@@ -316,7 +315,7 @@ def purge_geofence_layer_rules(resource):
                     e = Exception(msg)
                     logger.debug("Response [{}] : {}".format(r.status_code, r.text))
                     raise e
-    except Exception as e:
+    except BaseException as e:
         logger.exception(e)
 
 
@@ -340,7 +339,7 @@ def set_geofence_invalidate_cache():
                 logger.warning("Could not Invalidate GeoFence Rules.")
                 return False
             return True
-        except Exception:
+        except BaseException:
             tb = traceback.format_exc()
             logger.debug(tb)
             return False
@@ -368,7 +367,7 @@ def set_geowebcache_invalidate_cache(layer_alternate):
                           auth=HTTPBasicAuth(user, passwd))
         if (r.status_code < 200 or r.status_code > 201):
             logger.warning("Could not Truncate GWC Cache for Layer '%s'." % layer_alternate)
-    except Exception:
+    except BaseException:
         tb = traceback.format_exc()
         logger.debug(tb)
 
@@ -418,7 +417,7 @@ def set_geofence_all(instance):
                 "Response {!r} : {}".format(response.status_code, response.text))
             raise RuntimeError("Could not ADD GeoServer ANONYMOUS Rule "
                                "for Layer {}".format(resource.layer.name))
-    except Exception:
+    except BaseException:
         tb = traceback.format_exc()
         logger.debug(tb)
     finally:
@@ -433,7 +432,7 @@ def sync_geofence_with_guardian(layer, perms, user=None, group=None):
     """
     Sync Guardian permissions to GeoFence.
     """
-    _layer_name = layer.name if layer and hasattr(layer, 'name') else layer.alternate.split(":")[0]
+    _layer_name = layer.name if layer.name else layer.alternate.split(":")[0]
     _layer_workspace = get_layer_workspace(layer)
     # Create new rule-set
     gf_services = {}
@@ -448,11 +447,11 @@ def sync_geofence_with_guardian(layer, perms, user=None, group=None):
     gf_services["WPS"] = 'download_resourcebase' in perms or 'change_layer_data' in perms
     _user = None
     if user:
-        _user = user if isinstance(user, string_types) else user.username
+        _user = user if isinstance(user, basestring) else user.username
     _group = None
     if group:
-        _group = group if isinstance(group, string_types) else group.name
-    for service, allowed in gf_services.items():
+        _group = group if isinstance(group, basestring) else group.name
+    for service, allowed in gf_services.iteritems():
         if allowed:
             if _user:
                 logger.debug("Adding 'user' to geofence the rule: %s %s %s" % (layer, service, _user))
@@ -489,8 +488,8 @@ def remove_object_permissions(instance):
     """
     from guardian.models import UserObjectPermission, GroupObjectPermission
     resource = instance.get_self_resource()
-    try:
-        if hasattr(resource, "layer"):
+    if hasattr(resource, "layer"):
+        try:
             UserObjectPermission.objects.filter(
                 content_type=ContentType.objects.get_for_model(resource.layer),
                 object_pk=instance.id
@@ -505,11 +504,11 @@ def remove_object_permissions(instance):
                     set_geofence_invalidate_cache()
             else:
                 resource.set_dirty_state()
-    except (ObjectDoesNotExist, RuntimeError):
-        pass  # This layer is not manageable by geofence
-    except Exception:
-        tb = traceback.format_exc()
-        logger.debug(tb)
+        except (ObjectDoesNotExist, RuntimeError):
+            pass  # This layer is not manageable by geofence
+        except BaseException:
+            tb = traceback.format_exc()
+            logger.debug(tb)
     UserObjectPermission.objects.filter(content_type=ContentType.objects.get_for_model(resource),
                                         object_pk=instance.id).delete()
     GroupObjectPermission.objects.filter(content_type=ContentType.objects.get_for_model(resource),
@@ -612,6 +611,6 @@ def sync_resources_with_guardian(resource=None):
                             # Set the GeoFence Group Rules
                             sync_geofence_with_guardian(layer, perms, group=group)
                     r.clear_dirty_state()
-                except Exception as e:
+                except BaseException as e:
                     logger.exception(e)
                     logger.warn("!WARNING! - Failure Synching-up Security Rules for Resource [%s]" % (r))
